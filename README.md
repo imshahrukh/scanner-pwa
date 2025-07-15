@@ -13,6 +13,7 @@ A Progressive Web App (PWA) built with React and TypeScript that allows users to
 - 📋 **Copy to clipboard** functionality
 - 📊 **Scan history** with local storage
 - 🎯 **TypeScript** for type safety
+- 🍎 **iOS Native App** support via Capacitor (solves camera issues)
 
 ## Tech Stack
 
@@ -21,7 +22,18 @@ A Progressive Web App (PWA) built with React and TypeScript that allows users to
 - **Styling**: Tailwind CSS
 - **Scanner**: react-zxing (ZXing library wrapper)
 - **PWA**: vite-plugin-pwa with Workbox
+- **Native**: Capacitor for iOS/Android apps
 - **Icons**: Heroicons (via SVG)
+
+## 🚨 iOS Camera Fix
+
+iOS PWAs lose camera access when added to Home Screen. We've solved this with **Capacitor native app**:
+
+- **Web Version**: Works in Safari as PWA
+- **Native App**: Full camera access via App Store
+- **Same Codebase**: Automatically detects environment
+
+📖 **[Complete Setup Guide →](./CAPACITOR_SETUP.md)**
 
 ## Quick Start
 

@@ -23,11 +23,20 @@ export interface PlatformInfo {
   isSafari: boolean;
   isStandalone: boolean;
   canInstall: boolean;
+  isNative: boolean;
+  hasNativeCamera: boolean;
 }
 
 // Extend navigator interface for iOS standalone detection
 interface NavigatorStandalone extends Navigator {
   standalone?: boolean;
+}
+
+// Extend window interface for Capacitor detection
+interface WindowWithCapacitor extends Window {
+  Capacitor?: {
+    isNativePlatform(): boolean;
+  };
 }
 
 // Utility functions for platform detection
@@ -41,6 +50,12 @@ export const detectPlatform = (): PlatformInfo => {
                       (navigator as NavigatorStandalone).standalone === true ||
                       document.referrer.includes('android-app://');
   
+  // Detect if running in Capacitor native app
+  const isNative = !!((window as WindowWithCapacitor).Capacitor?.isNativePlatform?.());
+  
+  // Native camera available if running in Capacitor
+  const hasNativeCamera = isNative;
+  
   // Can install if iOS Safari and not already standalone
   const canInstall = isIOS && isSafari && !isStandalone;
   
@@ -48,6 +63,8 @@ export const detectPlatform = (): PlatformInfo => {
     isIOS,
     isSafari,
     isStandalone,
-    canInstall
+    canInstall,
+    isNative,
+    hasNativeCamera
   };
 }; 
