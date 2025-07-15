@@ -46,6 +46,6 @@ export default defineConfig({
     })
   ],
   server: {
-    https: false, // Set to true for HTTPS in development if needed
+    // https: true, // Uncomment for HTTPS in development if needed
   }
 })
