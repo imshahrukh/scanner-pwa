@@ -46,6 +46,10 @@ body {
   --green-800: #166534;
   --orange-100: #fed7aa;
   --orange-800: #9a3412;
+  --yellow-50: #fefce8;
+  --yellow-200: #fef08a;
+  --yellow-700: #a16207;
+  --yellow-800: #92400e;
 }
 
 /* Utility classes */
@@ -731,6 +735,27 @@ body {
 
 .bg-opacity-50 {
   background-color: rgb(0 0 0 / 0.5);
+}
+
+/* Yellow color classes for debug mode */
+.bg-yellow-50 {
+  background-color: var(--yellow-50);
+}
+
+.bg-yellow-200 {
+  background-color: var(--yellow-200);
+}
+
+.text-yellow-700 {
+  color: var(--yellow-700);
+}
+
+.text-yellow-800 {
+  color: var(--yellow-800);
+}
+
+.border-yellow-200 {
+  border-color: var(--yellow-200);
 }
 
 /* Ordered list styles for iOS install instructions */

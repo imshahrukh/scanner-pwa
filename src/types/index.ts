@@ -16,7 +16,7 @@ export interface CameraConstraints {
     width: { ideal: number };
     height: { ideal: number };
   };
-}
+} 
 
 export interface PlatformInfo {
   isIOS: boolean;
