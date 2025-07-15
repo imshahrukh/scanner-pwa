@@ -99,10 +99,10 @@ function App() {
             <div className="bg-white rounded-lg shadow-lg p-4">
               <h3 className="text-sm font-medium text-gray-900 mb-2">How to use:</h3>
               <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Click "Start Scanning" to activate your camera</li>
-                <li>• Point your camera at any QR code or barcode</li>
-                <li>• The result will appear automatically</li>
-                <li>• Works offline once installed as PWA</li>
+                <li>Click "Start Scanning" to activate your camera</li>
+                <li>Point your camera at any QR code or barcode</li>
+                <li>The result will appear automatically</li>
+                <li>Works offline once installed as PWA</li>
               </ul>
             </div>
           </div>
