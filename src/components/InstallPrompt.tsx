@@ -65,6 +65,23 @@ const InstallPrompt: React.FC = () => {
     setShowInstallPrompt(false);
   };
 
+  const handleShareClick = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'QR & Barcode Scanner',
+          text: 'Install this QR Scanner app',
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.log('Share canceled or failed:', error);
+      }
+    } else {
+      // Fallback: just show alert with instructions
+      alert('To install this app:\n1. Tap the Share button in Safari\n2. Select "Add to Home Screen"\n3. Tap "Add" to confirm');
+    }
+  };
+
   const handleDismiss = () => {
     setShowInstallPrompt(false);
     
@@ -104,14 +121,25 @@ const InstallPrompt: React.FC = () => {
                 <div className="text-sm text-gray-600 mb-3">
                   <p className="mb-2">To install on iOS:</p>
                   <ol className="list-decimal list-inside space-y-1 text-xs">
-                    <li>Tap the Share button <span className="inline-flex items-center mx-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
-                      </svg>
-                    </span> in Safari</li>
+                    <li>
+                      Tap the Share button 
+                      <button
+                        onClick={handleShareClick}
+                        className="inline-flex items-center mx-1 p-1 bg-primary-100 hover:bg-primary-200 rounded transition-colors"
+                        title="Tap to open share menu"
+                      >
+                        <svg className="w-3 h-3 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
+                        </svg>
+                      </button>
+                      in Safari
+                    </li>
                     <li>Select "Add to Home Screen"</li>
                     <li>Tap "Add" to confirm</li>
                   </ol>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Tip: Tap the blue share button above to open the share menu directly!
+                  </p>
                 </div>
               </>
             ) : (
