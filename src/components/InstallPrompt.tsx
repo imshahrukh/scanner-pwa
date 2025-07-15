@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import type { BeforeInstallPromptEvent } from '../types';
+import { detectPlatform } from '../types';
 
 const InstallPrompt: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [platformInfo, setPlatformInfo] = useState(detectPlatform());
 
   useEffect(() => {
+    const platform = detectPlatform();
+    setPlatformInfo(platform);
+
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
@@ -19,12 +24,25 @@ const InstallPrompt: React.FC = () => {
       setDeferredPrompt(null);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    // For non-iOS devices, use the standard beforeinstallprompt event
+    if (!platform.isIOS) {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
+    }
+
+    // For iOS, show install prompt if not already installed and not dismissed
+    if (platform.canInstall) {
+      const hasBeenDismissed = localStorage.getItem('ios-install-dismissed');
+      if (!hasBeenDismissed) {
+        setShowInstallPrompt(true);
+      }
+    }
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      if (!platform.isIOS) {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      }
     };
   }, []);
 
@@ -49,9 +67,15 @@ const InstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);
+    
+    // For iOS, remember that user dismissed the prompt
+    if (platformInfo.isIOS) {
+      localStorage.setItem('ios-install-dismissed', 'true');
+    }
   };
 
-  if (!showInstallPrompt) {
+  // Don't show if already installed as PWA
+  if (platformInfo.isStandalone || !showInstallPrompt) {
     return null;
   }
 
@@ -71,22 +95,45 @@ const InstallPrompt: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-900 mb-1">
               Install QR Scanner
             </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Add this app to your home screen for quick access and offline use.
-            </p>
+            
+            {platformInfo.isIOS ? (
+              <>
+                <p className="text-sm text-gray-600 mb-3">
+                  Add this app to your home screen for quick access and offline use.
+                </p>
+                <div className="text-sm text-gray-600 mb-3">
+                  <p className="mb-2">To install on iOS:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs">
+                    <li>Tap the Share button <span className="inline-flex items-center mx-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
+                      </svg>
+                    </span> in Safari</li>
+                    <li>Select "Add to Home Screen"</li>
+                    <li>Tap "Add" to confirm</li>
+                  </ol>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600 mb-3">
+                Add this app to your home screen for quick access and offline use.
+              </p>
+            )}
             
             <div className="flex gap-2">
-              <button
-                onClick={handleInstallClick}
-                className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded transition-colors"
-              >
-                Install
-              </button>
+              {!platformInfo.isIOS && deferredPrompt && (
+                <button
+                  onClick={handleInstallClick}
+                  className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded transition-colors"
+                >
+                  Install
+                </button>
+              )}
               <button
                 onClick={handleDismiss}
                 className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded transition-colors"
               >
-                Later
+                {platformInfo.isIOS ? 'Got it' : 'Later'}
               </button>
             </div>
           </div>
