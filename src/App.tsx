@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Scanner from './components/Scanner';
+import LazyScanner from './components/LazyScanner';
 import ResultDisplay from './components/ResultDisplay';
 import InstallPrompt from './components/InstallPrompt';
 import type { ScanResult } from './types';
@@ -93,7 +93,7 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Scanner Section */}
           <div className="space-y-6">
-            <Scanner onResult={handleScanResult} />
+            <LazyScanner onResult={handleScanResult} />
             
             {/* Instructions */}
             <div className="bg-white rounded-lg shadow-lg p-4">

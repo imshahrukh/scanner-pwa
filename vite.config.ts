@@ -44,7 +44,23 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true
-      }
-    })
-  ]
-})
+              }
+      })
+    ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Vendor libraries
+            'react-vendor': ['react', 'react-dom'],
+            // Scanner library (heavy)
+            'scanner-vendor': ['react-zxing'],
+            // PWA libraries
+            'pwa-vendor': ['workbox-window']
+          }
+        }
+      },
+      // Increase chunk size warning limit
+      chunkSizeWarningLimit: 1000
+    }
+  })
