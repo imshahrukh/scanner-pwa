@@ -120,7 +120,7 @@ function App() {
       {/* Footer */}
       <footer className="mt-12 py-6 border-t border-gray-200">
         <div className="max-w-4xl mx-auto px-4 text-center text-sm text-gray-600">
-          <p>QR & Barcode Scanner PWA - Works offline • Built with React & TypeScript</p>
+          <p>QR & Barcode Scanner PWA - Works offline • Built with React & TypeScript!</p>
         </div>
       </footer>
     </div>
