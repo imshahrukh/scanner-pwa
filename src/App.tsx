@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import LazyScanner from './components/LazyScanner';
 import BatchScanner from './components/BatchScanner';
 import BatchAnalytics from './components/BatchAnalytics';
+import MultiCodeScanner from './components/MultiCodeScanner';
+import TrueMultiCodeScanner from './components/TrueMultiCodeScanner';
 import ResultDisplay from './components/ResultDisplay';
 import InstallPrompt from './components/InstallPrompt';
 import type { ScanResult } from './types';
 
-type ScanMode = 'single' | 'batch';
+type ScanMode = 'single' | 'batch' | 'multi' | 'true-multi';
 
 function App() {
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
@@ -63,6 +65,11 @@ function App() {
     // End batch session
     setIsBatchScanning(false);
     setBatchStartTime(undefined);
+  };
+
+  const handleMultiCodeResults = (results: ScanResult[]) => {
+    // Add all multi-code results to the main results
+    setScanResults(prev => [...results, ...prev]);
   };
 
 
@@ -147,7 +154,39 @@ function App() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  Batch Scan (10-20 codes)
+                  Batch Scan
+                </div>
+              </button>
+
+              <button
+                onClick={() => setScanMode('multi')}
+                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                  scanMode === 'multi'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Image Upload
+                </div>
+              </button>
+
+              <button
+                onClick={() => setScanMode('true-multi')}
+                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                  scanMode === 'true-multi'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  True Multi-Code
                 </div>
               </button>
             </div>
@@ -158,17 +197,21 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Single Scanner Section */}
             <div className="space-y-6">
-              <LazyScanner onResult={handleScanResult} />
+              <LazyScanner 
+                onResult={handleScanResult} 
+                onMultiResults={handleMultiCodeResults}
+                enableMultiScan={true}
+              />
               
               {/* Instructions */}
               <div className="bg-white rounded-lg shadow-lg p-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Single Scan Mode:</h3>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Enhanced Single Scan Mode:</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>Click "Start Scanning" to activate your camera</li>
                   <li>Point your camera at any QR code or barcode</li>
-                  <li>The result will appear automatically</li>
-                  <li>Scanner stops after each successful scan</li>
-                  <li>Perfect for individual code scanning</li>
+                  <li>Enhanced mode can detect multiple codes in the same frame</li>
+                  <li>Perfect for scanning individual codes or multiple codes at once</li>
+                  <li>Automatically detects and processes all visible QR codes</li>
                 </ul>
               </div>
             </div>
@@ -178,7 +221,7 @@ function App() {
               <ResultDisplay results={scanResults} onClear={handleClearResults} />
             </div>
           </div>
-        ) : (
+        ) : scanMode === 'batch' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Batch Scanner Section */}
@@ -219,6 +262,87 @@ function App() {
                   isScanning={isBatchScanning}
                   startTime={batchStartTime}
                 />
+              </div>
+            </div>
+            
+            {/* Full Results Display */}
+            <div>
+              <ResultDisplay results={scanResults} onClear={handleClearResults} />
+            </div>
+          </div>
+        ) : scanMode === 'multi' ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Multi-Code Scanner Section */}
+              <div>
+                <MultiCodeScanner onResults={handleMultiCodeResults} />
+              </div>
+              
+              {/* Instructions */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">Image Upload Multi-Code Mode:</h3>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>Upload an image containing multiple QR codes</li>
+                    <li>All codes in the image are scanned simultaneously</li>
+                    <li>Perfect for scanning multiple codes at once</li>
+                    <li>Supports various image formats (JPEG, PNG, etc.)</li>
+                    <li>Works best with clear, well-lit images</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-green-50 rounded-lg shadow-lg p-4 border-l-4 border-green-500">
+                  <h3 className="text-sm font-medium text-green-900 mb-2">🎯 Image Upload Benefits:</h3>
+                  <ul className="text-sm text-green-800 space-y-1">
+                    <li>• Scan all QR codes in an image at once</li>
+                    <li>• No need to point camera at each code individually</li>
+                    <li>• Perfect for inventory sheets or code collections</li>
+                    <li>• Faster than real-time scanning for multiple codes</li>
+                    <li>• Works with screenshots, photos, or scanned documents</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            {/* Full Results Display */}
+            <div>
+              <ResultDisplay results={scanResults} onClear={handleClearResults} />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* True Multi-Code Scanner Section */}
+              <div>
+                <TrueMultiCodeScanner
+                  onResults={handleMultiCodeResults}
+                  onSingleResult={handleScanResult}
+                />
+              </div>
+              
+              {/* Instructions */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">True Multi-Code Camera Mode:</h3>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>Real-time camera scanning with true multi-code detection</li>
+                    <li>Detects ALL QR codes in the camera view simultaneously</li>
+                    <li>Works with any arrangement: vertical, horizontal, grid, scattered</li>
+                    <li>No need to move camera between codes</li>
+                    <li>Uses advanced jsQR library for superior detection</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-blue-50 rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
+                  <h3 className="text-sm font-medium text-blue-900 mb-2">🚀 True Multi-Code Benefits:</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Detects ALL QR codes in camera view simultaneously</li>
+                    <li>• Works with any arrangement: vertical, horizontal, grid</li>
+                    <li>• No need to move camera between codes</li>
+                    <li>• Real-time detection of multiple codes in single frame</li>
+                    <li>• Much faster and more efficient than traditional scanners</li>
+                  </ul>
+                </div>
               </div>
             </div>
             

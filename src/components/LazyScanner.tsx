@@ -6,6 +6,8 @@ const Scanner = lazy(() => import('./Scanner'));
 
 interface LazyScannerProps {
   onResult: (result: ScanResult) => void;
+  onMultiResults?: (results: ScanResult[]) => void;
+  enableMultiScan?: boolean;
 }
 
 const ScannerFallback = () => (
@@ -17,10 +19,14 @@ const ScannerFallback = () => (
   </div>
 );
 
-const LazyScanner: React.FC<LazyScannerProps> = ({ onResult }) => {
+const LazyScanner: React.FC<LazyScannerProps> = ({ onResult, onMultiResults, enableMultiScan }) => {
   return (
     <Suspense fallback={<ScannerFallback />}>
-      <Scanner onResult={onResult} />
+      <Scanner 
+        onResult={onResult} 
+        onMultiResults={onMultiResults}
+        enableMultiScan={enableMultiScan}
+      />
     </Suspense>
   );
 };

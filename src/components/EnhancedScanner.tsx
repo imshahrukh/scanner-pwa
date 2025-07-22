@@ -4,13 +4,17 @@ import { BrowserMultiFormatReader } from '@zxing/library';
 import type { ScanResult } from '../types';
 import { detectPlatform } from '../types';
 
-interface ScannerProps {
+interface EnhancedScannerProps {
   onResult: (result: ScanResult) => void;
   onMultiResults?: (results: ScanResult[]) => void;
   enableMultiScan?: boolean;
 }
 
-const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMultiScan = false }) => {
+const EnhancedScanner: React.FC<EnhancedScannerProps> = ({ 
+  onResult, 
+  onMultiResults,
+  enableMultiScan = false 
+}) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [platformInfo] = useState(detectPlatform());
@@ -20,12 +24,10 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const multiScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const continuousMultiScanRef = useRef<NodeJS.Timeout | null>(null);
 
   // iOS-friendly video constraints
   const getVideoConstraints = () => {
     if (platformInfo.isIOS) {
-      // Conservative constraints for iOS
       return {
         facingMode: 'environment',
         width: { ideal: 640, max: 1024 },
@@ -33,7 +35,6 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
         frameRate: { ideal: 15, max: 30 }
       };
     } else {
-      // Higher quality for other platforms
       return {
         facingMode: 'environment',
         width: { ideal: 1280 },
@@ -47,49 +48,67 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
   const detectMultipleCodes = useCallback(async (videoElement: HTMLVideoElement) => {
     if (!enableMultiScan || !onMultiResults) return;
 
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size to video size
+    canvas.width = videoElement.videoWidth;
+    canvas.height = videoElement.videoHeight;
+
+    // Draw current video frame to canvas
+    ctx.drawImage(videoElement, 0, 0);
+
     try {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Set canvas size to video size
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-
-      // Draw current video frame to canvas
-      ctx.drawImage(videoElement, 0, 0);
 
       const reader = new BrowserMultiFormatReader();
+      
       const results: ScanResult[] = [];
       const newCodes = new Set<string>();
 
-      // Strategy optimized for vertically stacked QR codes like yours
-      const regions = [
-        { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 }, // Top half
-        { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 }, // Bottom half
-        // Also try smaller regions for better detection
-        { x: 0, y: 0, w: canvas.width, h: canvas.height / 3 }, // Top third
-        { x: 0, y: canvas.height / 3, w: canvas.width, h: canvas.height / 3 }, // Middle third
-        { x: 0, y: 2 * canvas.height / 3, w: canvas.width, h: canvas.height / 3 }, // Bottom third
+      // Try different scanning strategies for multiple codes
+      const strategies = [
+        // Strategy 1: Direct scan with multiple format support
+        async () => {
+          const result = await reader.decodeFromImage(canvas.toDataURL());
+          return result;
+        },
+        // Strategy 2: Region-based scanning (divide frame into quadrants)
+        async () => {
+          const regions = [
+            { x: 0, y: 0, w: canvas.width / 2, h: canvas.height / 2 },
+            { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height / 2 },
+            { x: 0, y: canvas.height / 2, w: canvas.width / 2, h: canvas.height / 2 },
+            { x: canvas.width / 2, y: canvas.height / 2, w: canvas.width / 2, h: canvas.height / 2 }
+          ];
+
+          for (const region of regions) {
+            try {
+              // Create a temporary canvas for this region
+              const tempCanvas = document.createElement('canvas');
+              const tempCtx = tempCanvas.getContext('2d');
+              if (!tempCtx) continue;
+              
+              tempCanvas.width = region.w;
+              tempCanvas.height = region.h;
+              tempCtx.drawImage(canvas, region.x, region.y, region.w, region.h, 0, 0, region.w, region.h);
+              
+              const result = await reader.decodeFromImage(tempCanvas.toDataURL());
+              return result;
+            } catch (e) {
+              // Continue to next region
+            }
+          }
+          return null;
+        }
       ];
 
-      for (const region of regions) {
+      // Try each strategy
+      for (const strategy of strategies) {
         try {
-          // Create a temporary canvas for this region
-          const tempCanvas = document.createElement('canvas');
-          const tempCtx = tempCanvas.getContext('2d');
-          if (!tempCtx) continue;
-          
-          tempCanvas.width = region.w;
-          tempCanvas.height = region.h;
-          tempCtx.drawImage(canvas, region.x, region.y, region.w, region.h, 0, 0, region.w, region.h);
-          
-          // Convert canvas to image data URL
-          const imageDataUrl = tempCanvas.toDataURL();
-          const result = await reader.decodeFromImage(imageDataUrl);
-          
+          const result = await strategy();
           if (result && !newCodes.has(result.getText())) {
             newCodes.add(result.getText());
             results.push({
@@ -99,7 +118,7 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
             });
           }
         } catch (e) {
-          // Continue to next region
+          // Continue to next strategy
         }
       }
 
@@ -115,22 +134,6 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
       console.debug('Multi-scan error:', error);
     }
   }, [enableMultiScan, onMultiResults]);
-
-  // Continuous multi-code scanning
-  const startContinuousMultiScan = useCallback((videoElement: HTMLVideoElement) => {
-    if (!enableMultiScan || !isScanning) return;
-
-    const scanInterval = () => {
-      if (videoElement && isScanning) {
-        detectMultipleCodes(videoElement);
-        continuousMultiScanRef.current = setTimeout(scanInterval, 1000); // Scan every second
-      }
-    };
-
-    scanInterval();
-  }, [enableMultiScan, isScanning, detectMultipleCodes]);
-
-
 
   const { ref } = useZxing({
     onDecodeResult(result) {
@@ -150,30 +153,27 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
       setScannedCodes(prev => new Set([...prev, scanResult.text]));
 
       // Rate limiting to prevent rapid duplicate scans
-      if (now - lastScanTime < 500) {
+      if (now - lastScanTime < 1000) {
         return;
       }
       setLastScanTime(now);
 
       onResult(scanResult);
       
-      // If multi-scan is enabled, immediately try to detect more codes
+      // If multi-scan is enabled, try to detect more codes in the same frame
       if (enableMultiScan && ref.current) {
         // Clear any existing timeout
         if (multiScanTimeoutRef.current) {
           clearTimeout(multiScanTimeoutRef.current);
         }
 
-        // Try multi-scan immediately and then again after a short delay
-        detectMultipleCodes(ref.current);
-        
-        // Also try again after a short delay to catch any missed codes
+        // Wait a bit then try multi-scan
         multiScanTimeoutRef.current = setTimeout(() => {
           detectMultipleCodes(ref.current!);
-        }, 300);
+        }, 200);
       }
       
-      // NEVER stop scanning in multi-scan mode - keep scanning continuously
+      // Don't stop scanning immediately on iOS to prevent stream issues
       if (!platformInfo.isIOS && !enableMultiScan) {
         setIsScanning(false);
       }
@@ -203,10 +203,6 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
     if (multiScanTimeoutRef.current) {
       clearTimeout(multiScanTimeoutRef.current);
     }
-    if (continuousMultiScanRef.current) {
-      clearTimeout(continuousMultiScanRef.current);
-    }
-
   }, []);
 
   // Cleanup on component unmount
@@ -242,13 +238,6 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
       }
 
       setIsScanning(true);
-      
-      // Start continuous multi-scanning if enabled
-      if (enableMultiScan && ref.current) {
-        setTimeout(() => {
-          startContinuousMultiScan(ref.current!);
-        }, 2000); // Start after 2 seconds to let camera initialize
-      }
       
       // Store reference to video element for cleanup
       if (ref.current) {
@@ -311,10 +300,7 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
         {enableMultiScan && (
           <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
             <p className="text-sm">
-              🚀 Enhanced Multi-Code Mode: Continuously scanning for multiple QR codes
-            </p>
-            <p className="text-xs mt-1">
-              Point camera at multiple QR codes - it will detect all visible codes simultaneously
+              🚀 Enhanced Mode: Attempting to detect multiple codes in each frame
             </p>
           </div>
         )}
@@ -363,7 +349,7 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
               </div>
               <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm">
                 {enableMultiScan 
-                  ? 'Multi-Code Mode: All visible QR codes will be detected'
+                  ? 'Point camera at multiple QR codes'
                   : 'Point camera at QR code or barcode'
                 }
                 {platformInfo.isIOS && (
@@ -414,19 +400,6 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
           )}
         </div>
         
-        {/* iOS-specific tips */}
-        {platformInfo.isIOS && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-            <h4 className="text-sm font-medium text-blue-900 mb-1">iOS Tips:</h4>
-            <ul className="text-xs text-blue-800 space-y-1">
-              <li>- Use Safari browser for best compatibility</li>
-              <li>- Ensure good lighting for scanning</li>
-              <li>- Hold device steady and close to QR code</li>
-              <li>- If camera freezes, tap the video area</li>
-            </ul>
-          </div>
-        )}
-        
         {/* Enhanced mode tips */}
         {enableMultiScan && (
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
@@ -460,4 +433,4 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
   );
 };
 
-export default Scanner; 
+export default EnhancedScanner; 
