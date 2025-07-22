@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import LazyScanner from './components/LazyScanner';
+import BatchScanner from './components/BatchScanner';
+import BatchAnalytics from './components/BatchAnalytics';
 import ResultDisplay from './components/ResultDisplay';
 import InstallPrompt from './components/InstallPrompt';
 import type { ScanResult } from './types';
 
+type ScanMode = 'single' | 'batch';
+
 function App() {
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [scanMode, setScanMode] = useState<ScanMode>('single');
+  const [batchSessionResults, setBatchSessionResults] = useState<ScanResult[]>([]);
+  const [batchStartTime, setBatchStartTime] = useState<number | undefined>();
+  const [isBatchScanning, setIsBatchScanning] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -47,6 +55,23 @@ function App() {
 
   const handleClearResults = () => {
     setScanResults([]);
+  };
+
+  const handleBatchComplete = (batchResults: ScanResult[]) => {
+    // Add all batch results to the main results
+    setScanResults(prev => [...batchResults, ...prev]);
+    // End batch session
+    setIsBatchScanning(false);
+    setBatchStartTime(undefined);
+  };
+
+
+
+  const handleBatchScanResult = (result: ScanResult) => {
+    // Add to session results for analytics
+    setBatchSessionResults(prev => [...prev, result]);
+    // Also add to main results
+    handleScanResult(result);
   };
 
   return (
@@ -90,28 +115,119 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Scanner Section */}
-          <div className="space-y-6">
-            <LazyScanner onResult={handleScanResult} />
-            
-            {/* Instructions */}
-            <div className="bg-white rounded-lg shadow-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-2">How to use:</h3>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>Click "Start Scanning" to activate your camera</li>
-                <li>Point your camera at any QR code or barcode</li>
-                <li>The result will appear automatically</li>
-                <li>Works offline once installed as PWA</li>
-              </ul>
+        {/* Scan Mode Toggle */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-1">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setScanMode('single')}
+                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                  scanMode === 'single'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m6-4h-2m-4-4h4m-4 0V4m-6 7h2m0 0V8.01M6 12v-2m6 2v-2m0 2v2m0-2h2m-2 0H8m4 0v2m-6-2h2" />
+                  </svg>
+                  Single Scan
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setScanMode('batch')}
+                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                  scanMode === 'batch'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Batch Scan (10-20 codes)
+                </div>
+              </button>
             </div>
           </div>
-
-          {/* Results Section */}
-          <div>
-            <ResultDisplay results={scanResults} onClear={handleClearResults} />
-          </div>
         </div>
+
+        {scanMode === 'single' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Single Scanner Section */}
+            <div className="space-y-6">
+              <LazyScanner onResult={handleScanResult} />
+              
+              {/* Instructions */}
+              <div className="bg-white rounded-lg shadow-lg p-4">
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Single Scan Mode:</h3>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>Click "Start Scanning" to activate your camera</li>
+                  <li>Point your camera at any QR code or barcode</li>
+                  <li>The result will appear automatically</li>
+                  <li>Scanner stops after each successful scan</li>
+                  <li>Perfect for individual code scanning</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Results Section */}
+            <div>
+              <ResultDisplay results={scanResults} onClear={handleClearResults} />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Batch Scanner Section */}
+              <div>
+                <BatchScanner 
+                  onResult={handleBatchScanResult} 
+                  onBatchComplete={handleBatchComplete}
+                />
+              </div>
+              
+              {/* Instructions & Analytics */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">Batch Scan Mode:</h3>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>Set target count (5-50 codes)</li>
+                    <li>Configure scan delay and duplicate handling</li>
+                    <li>Scanner continues automatically after each scan</li>
+                    <li>Auto-stops when target is reached</li>
+                    <li>Export results as CSV for bulk processing</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-blue-50 rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
+                  <h3 className="text-sm font-medium text-blue-900 mb-2">🚀 Batch Scanning Tips:</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Organize QR codes in a grid layout</li>
+                    <li>• Use good lighting for faster scanning</li>
+                    <li>• Adjust scan delay if codes are too close</li>
+                    <li>• Enable duplicate skipping for inventory</li>
+                    <li>• Export to CSV for data processing</li>
+                  </ul>
+                </div>
+
+                {/* Real-time Analytics */}
+                <BatchAnalytics 
+                  results={batchSessionResults}
+                  isScanning={isBatchScanning}
+                  startTime={batchStartTime}
+                />
+              </div>
+            </div>
+            
+            {/* Full Results Display */}
+            <div>
+              <ResultDisplay results={scanResults} onClear={handleClearResults} />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Install Prompt */}
