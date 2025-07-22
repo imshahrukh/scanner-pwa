@@ -19,6 +19,7 @@
     "@capacitor/camera": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
+    "qr-code-styling": "^1.9.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-zxing": "^2.1.0",
