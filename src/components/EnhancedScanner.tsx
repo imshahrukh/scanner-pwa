@@ -97,7 +97,7 @@ const EnhancedScanner: React.FC<EnhancedScannerProps> = ({
               
               const result = await reader.decodeFromImage(tempCanvas.toDataURL());
               return result;
-            } catch (e) {
+            } catch {
               // Continue to next region
             }
           }
@@ -112,12 +112,14 @@ const EnhancedScanner: React.FC<EnhancedScannerProps> = ({
           if (result && !newCodes.has(result.getText())) {
             newCodes.add(result.getText());
             results.push({
+              id: `enhanced-${Date.now()}-${Math.random()}`,
               text: result.getText(),
               timestamp: new Date(),
-              format: result.getBarcodeFormat?.()?.toString(),
+              format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+              source: 'camera' as const,
             });
           }
-        } catch (e) {
+        } catch {
           // Continue to next strategy
         }
       }
@@ -139,9 +141,11 @@ const EnhancedScanner: React.FC<EnhancedScannerProps> = ({
     onDecodeResult(result) {
       const now = Date.now();
       const scanResult: ScanResult = {
+        id: `enhanced-single-${Date.now()}-${Math.random()}`,
         text: result.getText(),
         timestamp: new Date(),
-        format: result.getBarcodeFormat?.()?.toString(),
+        format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+        source: 'camera' as const,
       };
 
       // Check if we've already scanned this code recently

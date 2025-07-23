@@ -1,34 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+
+// PWA install prompt types
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   QrCode, 
   Camera, 
-  Settings, 
-  Download, 
-  Trash2, 
   Zap, 
-  BarChart3, 
   Smartphone,
-  Wifi,
   WifiOff,
-  CheckCircle,
-  AlertCircle
+  CheckCircle
 } from 'lucide-react';
-import AdvancedMultiScanner from './components/AdvancedMultiScanner';
-import type { ScanResult, ProcessingStats } from './types';
+import UltraFastMultiScanner from './components/UltraFastMultiScanner';
+import UltraFastResultsDisplay from './components/UltraFastResultsDisplay';
+import UltraFastDemoSetup from './components/UltraFastDemoSetup';
+import type { ScanResult } from './types';
 
 function App() {
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [currentStats, setCurrentStats] = useState<ProcessingStats>({
-    framesProcessed: 0,
-    codesDetected: 0,
-    averageProcessingTime: 0,
-    fps: 0,
-    lastUpdate: new Date()
-  });
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     // Handle online/offline status
@@ -56,7 +55,7 @@ function App() {
     // Handle PWA install prompt
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstallPrompt(true);
     };
 
@@ -82,35 +81,7 @@ function App() {
     });
   };
 
-  const handleSingleResult = (result: ScanResult) => {
-    setScanResults(prev => [result, ...prev.slice(0, 99)]);
-  };
-
-  const handleStatsUpdate = (stats: ProcessingStats) => {
-    setCurrentStats(stats);
-  };
-
-  const handleClearResults = () => {
-    setScanResults([]);
-  };
-
-  const handleExportResults = () => {
-    const data = scanResults.map(result => ({
-      text: result.text,
-      format: result.format,
-      timestamp: result.timestamp.toISOString(),
-      confidence: result.confidence,
-      source: result.source
-    }));
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `multi-qr-scan-results-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Results handling is now managed by UltraFastResultsDisplay component
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -178,9 +149,9 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Scanner Section */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -190,20 +161,24 @@ function App() {
               {/* Scanner Title */}
               <div className="text-center">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  Advanced Multi-QR Scanner
+                  ⚡ Ultra-Fast Multi-QR Scanner
                 </h2>
                 <p className="text-gray-600 max-w-2xl mx-auto">
-                  Scan multiple QR codes simultaneously in real-time with our cutting-edge detection technology. 
-                  Perfect for inventory, batch processing, and rapid code collection.
+                  <strong>Revolutionary Technology:</strong> Scan up to 50 QR codes simultaneously at 60fps with real-time processing. 
+                  Powered by Web Workers and parallel algorithms for unmatched performance.
                 </p>
               </div>
 
-              {/* Scanner Component */}
-              <AdvancedMultiScanner
+              {/* Ultra-Fast Scanner Component */}
+              <UltraFastMultiScanner
                 onResults={handleScanResults}
-                onSingleResult={handleSingleResult}
-                onStatsUpdate={handleStatsUpdate}
+                maxCodes={50}
               />
+              
+              {/* Demo Setup Component */}
+              <div className="mt-6">
+                <UltraFastDemoSetup />
+              </div>
 
               {/* Features Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
@@ -214,9 +189,9 @@ function App() {
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                     <Zap className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Real-time Processing</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">⚡ 60fps Processing</h3>
                   <p className="text-sm text-gray-600">
-                    Advanced algorithms detect multiple QR codes simultaneously with high accuracy and speed.
+                    Ultra-fast parallel processing with Web Workers for real-time detection of up to 50 codes simultaneously.
                   </p>
                 </motion.div>
 
@@ -227,9 +202,9 @@ function App() {
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                     <Camera className="w-6 h-6 text-green-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Multi-Scale Detection</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">🎯 Grid Scanning</h3>
                   <p className="text-sm text-gray-600">
-                    Detects codes of various sizes and orientations using region-based and scale-invariant scanning.
+                    Intelligent grid-based region scanning with parallel workers for maximum coverage and accuracy.
                   </p>
                 </motion.div>
 
@@ -240,176 +215,27 @@ function App() {
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                     <Smartphone className="w-6 h-6 text-purple-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">PWA Optimized</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">🚀 Ultra-Lightweight</h3>
                   <p className="text-sm text-gray-600">
-                    Works offline, installable on any device, and provides native app-like experience.
+                    Minimal memory footprint with efficient algorithms and optimized batch updates for maximum performance.
                   </p>
                 </motion.div>
               </div>
             </motion.div>
           </div>
 
-          {/* Results & Stats Section */}
-          <div className="space-y-6">
-            {/* Live Stats */}
+                    {/* Ultra-Fast Results Display */}
+          <div className="lg:col-span-1">
             <motion.div
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
+              className="h-full"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">Live Statistics</h3>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">FPS</span>
-                  <span className="font-mono font-semibold text-blue-600">
-                    {Math.round(currentStats.fps)}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Frames Processed</span>
-                  <span className="font-mono font-semibold text-green-600">
-                    {currentStats.framesProcessed.toLocaleString()}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Codes Detected</span>
-                  <span className="font-mono font-semibold text-purple-600">
-                    {currentStats.codesDetected.toLocaleString()}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Avg Processing</span>
-                  <span className="font-mono font-semibold text-orange-600">
-                    {currentStats.averageProcessingTime.toFixed(1)}ms
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Results Summary */}
-            <motion.div
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-green-600" />
-                  <h3 className="font-semibold text-gray-900">Scan Results</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleExportResults}
-                    className="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-                    title="Export Results"
-                  >
-                    <Download className="w-4 h-4" />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleClearResults}
-                    className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                    title="Clear Results"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </motion.button>
-                </div>
-              </div>
-
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                <AnimatePresence>
-                  {scanResults.slice(0, 10).map((result, index) => (
-                    <motion.div
-                      key={result.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {result.text}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-gray-500">
-                              {result.timestamp.toLocaleTimeString()}
-                            </span>
-                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                              {result.format}
-                            </span>
-                            {result.confidence && (
-                              <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                                {Math.round(result.confidence * 100)}%
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {scanResults.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <QrCode className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm">No codes scanned yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Start scanning to see results here</p>
-                  </div>
-                )}
-
-                {scanResults.length > 10 && (
-                  <div className="text-center py-2">
-                    <span className="text-sm text-gray-500">
-                      +{scanResults.length - 10} more results
-                    </span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
-            >
-              <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleExportResults}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                >
-                  <Download className="w-5 h-5" />
-                  <span className="text-sm font-medium">Export Results</span>
-                </motion.button>
-                
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleClearResults}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span className="text-sm font-medium">Clear All Results</span>
-                </motion.button>
-              </div>
+              <UltraFastResultsDisplay 
+                results={scanResults}
+                maxDisplay={50}
+              />
             </motion.div>
           </div>
         </div>

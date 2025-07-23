@@ -93,12 +93,14 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
           if (result && !newCodes.has(result.getText())) {
             newCodes.add(result.getText());
             results.push({
+              id: `scanner-${Date.now()}-${Math.random()}`,
               text: result.getText(),
               timestamp: new Date(),
-              format: result.getBarcodeFormat?.()?.toString(),
+              format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+              source: 'camera' as const,
             });
           }
-        } catch (e) {
+        } catch {
           // Continue to next region
         }
       }
@@ -136,9 +138,11 @@ const Scanner: React.FC<ScannerProps> = ({ onResult, onMultiResults, enableMulti
     onDecodeResult(result) {
       const now = Date.now();
       const scanResult: ScanResult = {
+        id: `scanner-single-${Date.now()}-${Math.random()}`,
         text: result.getText(),
         timestamp: new Date(),
-        format: result.getBarcodeFormat?.()?.toString(),
+        format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+        source: 'camera' as const,
       };
 
       // Check if we've already scanned this code recently

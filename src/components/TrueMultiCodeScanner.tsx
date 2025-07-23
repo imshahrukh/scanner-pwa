@@ -82,9 +82,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       if (result && !scannedCodesSetRef.current.has(result.data)) {
         console.log('Found QR code in full frame:', result.data);
         results.push({
+          id: `true-multi-${Date.now()}-${Math.random()}`,
           text: result.data,
           timestamp: new Date(),
           format: 'QR_CODE',
+          source: 'camera' as const,
         });
         newCodes.add(result.data);
       }
@@ -106,9 +108,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         if (result && !scannedCodesSetRef.current.has(result.data) && !newCodes.has(result.data)) {
           console.log('Found QR code in top half:', result.data);
           results.push({
+            id: `true-multi-top-${Date.now()}-${Math.random()}`,
             text: result.data,
             timestamp: new Date(),
             format: 'QR_CODE',
+            source: 'camera' as const,
           });
           newCodes.add(result.data);
         }
@@ -131,9 +135,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         if (result && !scannedCodesSetRef.current.has(result.data) && !newCodes.has(result.data)) {
           console.log('Found QR code in bottom half:', result.data);
           results.push({
+            id: `true-multi-bottom-${Date.now()}-${Math.random()}`,
             text: result.data,
             timestamp: new Date(),
             format: 'QR_CODE',
+            source: 'camera' as const,
           });
           newCodes.add(result.data);
         }
@@ -156,9 +162,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         if (result && !scannedCodesSetRef.current.has(result.data) && !newCodes.has(result.data)) {
           console.log('Found QR code in left half:', result.data);
           results.push({
+            id: `true-multi-left-${Date.now()}-${Math.random()}`,
             text: result.data,
             timestamp: new Date(),
             format: 'QR_CODE',
+            source: 'camera' as const,
           });
           newCodes.add(result.data);
         }
@@ -180,9 +188,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         if (result && !scannedCodesSetRef.current.has(result.data) && !newCodes.has(result.data)) {
           console.log('Found QR code in right half:', result.data);
           results.push({
+            id: `true-multi-right-${Date.now()}-${Math.random()}`,
             text: result.data,
             timestamp: new Date(),
             format: 'QR_CODE',
+            source: 'camera' as const,
           });
           newCodes.add(result.data);
         }

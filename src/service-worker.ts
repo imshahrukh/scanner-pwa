@@ -101,8 +101,9 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/index.html');
+      fetch(event.request).catch(async () => {
+        const cachedResponse = await caches.match('/index.html');
+        return cachedResponse || new Response('Offline fallback');
       })
     );
   }

@@ -63,9 +63,11 @@ const MultiCodeScanner: React.FC<MultiCodeScannerProps> = ({ onResults }) => {
               if (result && !scannedTexts.has(result.getText())) {
                 scannedTexts.add(result.getText());
                 results.push({
+                  id: `multi-${Date.now()}-${Math.random()}`,
                   text: result.getText(),
                   timestamp: new Date(),
-                  format: result.getBarcodeFormat?.()?.toString(),
+                  format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+                  source: 'image' as const,
                 });
               }
             } catch (e) {
@@ -100,9 +102,11 @@ const MultiCodeScanner: React.FC<MultiCodeScannerProps> = ({ onResults }) => {
                 if (result && !scannedTexts.has(result.getText())) {
                   scannedTexts.add(result.getText());
                   results.push({
+                    id: `multi-grid-${Date.now()}-${Math.random()}`,
                     text: result.getText(),
                     timestamp: new Date(),
-                    format: result.getBarcodeFormat?.()?.toString(),
+                    format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+                    source: 'image' as const,
                   });
                 }
               } catch (e) {

@@ -57,9 +57,11 @@ const BatchScanner: React.FC<BatchScannerProps> = ({ onResult, onBatchComplete }
   const handleScanResult = useCallback((result: any) => {
     const now = Date.now();
     const scanResult: ScanResult = {
+      id: `batch-${Date.now()}-${Math.random()}`,
       text: result.getText(),
       timestamp: new Date(),
-      format: result.getBarcodeFormat?.()?.toString(),
+      format: result.getBarcodeFormat?.()?.toString() || 'UNKNOWN',
+      source: 'camera' as const,
     };
 
     // Check for duplicates
