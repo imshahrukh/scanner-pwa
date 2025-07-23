@@ -1,8 +1,65 @@
 export interface ScanResult {
+  id: string;
   text: string;
+  format: string;
   timestamp: Date;
-  format?: string;
+  confidence?: number;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  source: 'camera' | 'image' | 'batch';
+  isDuplicate?: boolean;
 }
+
+export interface MultiScanResult {
+  results: ScanResult[];
+  frameCount: number;
+  processingTime: number;
+  totalCodesFound: number;
+}
+
+export interface ScannerConfig {
+  enableMultiScan: boolean;
+  scanInterval: number;
+  confidenceThreshold: number;
+  maxCodesPerFrame: number;
+  enableDuplicateDetection: boolean;
+  enableRealTimeProcessing: boolean;
+  cameraResolution: 'low' | 'medium' | 'high';
+  scanMode: 'continuous' | 'single-shot' | 'burst';
+}
+
+export interface CameraState {
+  isActive: boolean;
+  isInitializing: boolean;
+  hasPermission: boolean;
+  error: string | null;
+  stream: MediaStream | null;
+}
+
+export interface ProcessingStats {
+  framesProcessed: number;
+  codesDetected: number;
+  averageProcessingTime: number;
+  fps: number;
+  lastUpdate: Date;
+}
+
+export interface ScanSession {
+  id: string;
+  startTime: Date;
+  endTime?: Date;
+  results: ScanResult[];
+  config: ScannerConfig;
+  stats: ProcessingStats;
+}
+
+export type ScanMode = 'single' | 'multi' | 'batch' | 'continuous';
+export type CameraFacing = 'environment' | 'user';
+export type ProcessingMode = 'realtime' | 'optimized' | 'high-accuracy';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;

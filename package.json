@@ -1,7 +1,7 @@
 {
-  "name": "my-scanner-pwa",
+  "name": "multi-qr-scanner-pwa",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,11 +20,21 @@
     "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
     "@zxing/library": "^0.21.3",
+    "autoprefixer": "^10.4.0",
+    "framer-motion": "^11.0.0",
     "jsqr": "^1.4.0",
+    "lucide-react": "^0.400.0",
+    "postcss": "^8.4.0",
     "qr-code-styling": "^1.9.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-zxing": "^2.1.0",
+    "tailwindcss": "^3.4.0",
+    "workbox-cacheable-response": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0",
     "workbox-window": "^7.3.0"
   },
   "devDependencies": {

@@ -1,24 +1,37 @@
-import { useState, useEffect } from 'react';
-import LazyScanner from './components/LazyScanner';
-import BatchScanner from './components/BatchScanner';
-import BatchAnalytics from './components/BatchAnalytics';
-import MultiCodeScanner from './components/MultiCodeScanner';
-import TrueMultiCodeScanner from './components/TrueMultiCodeScanner';
-import ResultDisplay from './components/ResultDisplay';
-import InstallPrompt from './components/InstallPrompt';
-import type { ScanResult } from './types';
-
-type ScanMode = 'single' | 'batch' | 'multi' | 'true-multi';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  QrCode, 
+  Camera, 
+  Settings, 
+  Download, 
+  Trash2, 
+  Zap, 
+  BarChart3, 
+  Smartphone,
+  Wifi,
+  WifiOff,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
+import AdvancedMultiScanner from './components/AdvancedMultiScanner';
+import type { ScanResult, ProcessingStats } from './types';
 
 function App() {
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [scanMode, setScanMode] = useState<ScanMode>('single');
-  const [batchSessionResults, setBatchSessionResults] = useState<ScanResult[]>([]);
-  const [batchStartTime, setBatchStartTime] = useState<number | undefined>();
-  const [isBatchScanning, setIsBatchScanning] = useState(false);
+  const [currentStats, setCurrentStats] = useState<ProcessingStats>({
+    framesProcessed: 0,
+    codesDetected: 0,
+    averageProcessingTime: 0,
+    fps: 0,
+    lastUpdate: new Date()
+  });
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
+    // Handle online/offline status
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -26,7 +39,7 @@ function App() {
     window.addEventListener('offline', handleOffline);
 
     // Load saved results from localStorage
-    const savedResults = localStorage.getItem('scanResults');
+    const savedResults = localStorage.getItem('multiQRScanResults');
     if (savedResults) {
       try {
         const parsed = JSON.parse(savedResults) as Array<Omit<ScanResult, 'timestamp'> & { timestamp: string }>;
@@ -40,327 +53,416 @@ function App() {
       }
     }
 
+    // Handle PWA install prompt
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
 
   useEffect(() => {
     // Save results to localStorage whenever they change
-    localStorage.setItem('scanResults', JSON.stringify(scanResults));
+    localStorage.setItem('multiQRScanResults', JSON.stringify(scanResults));
   }, [scanResults]);
 
-  const handleScanResult = (result: ScanResult) => {
-    setScanResults(prev => [result, ...prev.slice(0, 49)]); // Keep last 50 results
+  const handleScanResults = (results: ScanResult[]) => {
+    setScanResults(prev => {
+      const newResults = [...results, ...prev];
+      // Keep only last 100 results
+      return newResults.slice(0, 100);
+    });
+  };
+
+  const handleSingleResult = (result: ScanResult) => {
+    setScanResults(prev => [result, ...prev.slice(0, 99)]);
+  };
+
+  const handleStatsUpdate = (stats: ProcessingStats) => {
+    setCurrentStats(stats);
   };
 
   const handleClearResults = () => {
     setScanResults([]);
   };
 
-  const handleBatchComplete = (batchResults: ScanResult[]) => {
-    // Add all batch results to the main results
-    setScanResults(prev => [...batchResults, ...prev]);
-    // End batch session
-    setIsBatchScanning(false);
-    setBatchStartTime(undefined);
+  const handleExportResults = () => {
+    const data = scanResults.map(result => ({
+      text: result.text,
+      format: result.format,
+      timestamp: result.timestamp.toISOString(),
+      confidence: result.confidence,
+      source: result.source
+    }));
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `multi-qr-scan-results-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const handleMultiCodeResults = (results: ScanResult[]) => {
-    // Add all multi-code results to the main results
-    setScanResults(prev => [...results, ...prev]);
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setShowInstallPrompt(false);
+        setDeferredPrompt(null);
+      }
+    }
   };
 
-
-
-  const handleBatchScanResult = (result: ScanResult) => {
-    // Add to session results for analytics
-    setBatchSessionResults(prev => [...prev, result]);
-    // Also add to main results
-    handleScanResult(result);
+  const dismissInstallPrompt = () => {
+    setShowInstallPrompt(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50"
+      >
+        <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m6-4h-2m-4-4h4m-4 0V4m-6 7h2m0 0V8.01M6 12v-2m6 2v-2m0 2v2m0-2h2m-2 0H8m4 0v2m-6-2h2" />
-                </svg>
-              </div>
+              <motion.div 
+                whileHover={{ scale: 1.05 }}
+                className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
+              >
+                <QrCode className="w-7 h-7 text-white" />
+              </motion.div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">QR & Barcode Scanner</h1>
-                <p className="text-sm text-gray-600">Scan codes instantly with your camera</p>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Multi-QR Scanner
+                </h1>
+                <p className="text-sm text-gray-600">Advanced real-time multi-code detection</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {!isOnline && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m2.829 2.829L15 15.536" />
-                  </svg>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="flex items-center gap-1 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-sm font-medium"
+                >
+                  <WifiOff className="w-4 h-4" />
                   Offline
-                </span>
+                </motion.div>
               )}
               
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium"
+              >
+                <CheckCircle className="w-4 h-4" />
                 PWA Ready
-              </span>
+              </motion.div>
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        {/* Scan Mode Toggle */}
-        <div className="mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-1">
-            <div className="flex space-x-1">
-              <button
-                onClick={() => setScanMode('single')}
-                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                  scanMode === 'single'
-                    ? 'bg-primary-500 text-white shadow-sm'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m6-4h-2m-4-4h4m-4 0V4m-6 7h2m0 0V8.01M6 12v-2m6 2v-2m0 2v2m0-2h2m-2 0H8m4 0v2m-6-2h2" />
-                  </svg>
-                  Single Scan
-                </div>
-              </button>
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Scanner Section */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="space-y-6"
+            >
+              {/* Scanner Title */}
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  Advanced Multi-QR Scanner
+                </h2>
+                <p className="text-gray-600 max-w-2xl mx-auto">
+                  Scan multiple QR codes simultaneously in real-time with our cutting-edge detection technology. 
+                  Perfect for inventory, batch processing, and rapid code collection.
+                </p>
+              </div>
+
+              {/* Scanner Component */}
+              <AdvancedMultiScanner
+                onResults={handleScanResults}
+                onSingleResult={handleSingleResult}
+                onStatsUpdate={handleStatsUpdate}
+              />
+
+              {/* Features Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-white rounded-xl p-6 shadow-lg border border-gray-100"
+                >
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                    <Zap className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Real-time Processing</h3>
+                  <p className="text-sm text-gray-600">
+                    Advanced algorithms detect multiple QR codes simultaneously with high accuracy and speed.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-white rounded-xl p-6 shadow-lg border border-gray-100"
+                >
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                    <Camera className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Multi-Scale Detection</h3>
+                  <p className="text-sm text-gray-600">
+                    Detects codes of various sizes and orientations using region-based and scale-invariant scanning.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-white rounded-xl p-6 shadow-lg border border-gray-100"
+                >
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                    <Smartphone className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">PWA Optimized</h3>
+                  <p className="text-sm text-gray-600">
+                    Works offline, installable on any device, and provides native app-like experience.
+                  </p>
+                </motion.div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Results & Stats Section */}
+          <div className="space-y-6">
+            {/* Live Stats */}
+            <motion.div
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-gray-900">Live Statistics</h3>
+              </div>
               
-              <button
-                onClick={() => setScanMode('batch')}
-                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                  scanMode === 'batch'
-                    ? 'bg-primary-500 text-white shadow-sm'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                  Batch Scan
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">FPS</span>
+                  <span className="font-mono font-semibold text-blue-600">
+                    {Math.round(currentStats.fps)}
+                  </span>
                 </div>
-              </button>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Frames Processed</span>
+                  <span className="font-mono font-semibold text-green-600">
+                    {currentStats.framesProcessed.toLocaleString()}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Codes Detected</span>
+                  <span className="font-mono font-semibold text-purple-600">
+                    {currentStats.codesDetected.toLocaleString()}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Avg Processing</span>
+                  <span className="font-mono font-semibold text-orange-600">
+                    {currentStats.averageProcessingTime.toFixed(1)}ms
+                  </span>
+                </div>
+              </div>
+            </motion.div>
 
-              <button
-                onClick={() => setScanMode('multi')}
-                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                  scanMode === 'multi'
-                    ? 'bg-primary-500 text-white shadow-sm'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Image Upload
+            {/* Results Summary */}
+            <motion.div
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-green-600" />
+                  <h3 className="font-semibold text-gray-900">Scan Results</h3>
                 </div>
-              </button>
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleExportResults}
+                    className="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                    title="Export Results"
+                  >
+                    <Download className="w-4 h-4" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleClearResults}
+                    className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                    title="Clear Results"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              </div>
 
-              <button
-                onClick={() => setScanMode('true-multi')}
-                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                  scanMode === 'true-multi'
-                    ? 'bg-primary-500 text-white shadow-sm'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  True Multi-Code
-                </div>
-              </button>
-            </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <AnimatePresence>
+                  {scanResults.slice(0, 10).map((result, index) => (
+                    <motion.div
+                      key={result.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {result.text}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-500">
+                              {result.timestamp.toLocaleTimeString()}
+                            </span>
+                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                              {result.format}
+                            </span>
+                            {result.confidence && (
+                              <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                {Math.round(result.confidence * 100)}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+
+                {scanResults.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <QrCode className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No codes scanned yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Start scanning to see results here</p>
+                  </div>
+                )}
+
+                {scanResults.length > 10 && (
+                  <div className="text-center py-2">
+                    <span className="text-sm text-gray-500">
+                      +{scanResults.length - 10} more results
+                    </span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
+            >
+              <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
+              <div className="space-y-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleExportResults}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="text-sm font-medium">Export Results</span>
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleClearResults}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="text-sm font-medium">Clear All Results</span>
+                </motion.button>
+              </div>
+            </motion.div>
           </div>
         </div>
-
-        {scanMode === 'single' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Single Scanner Section */}
-            <div className="space-y-6">
-              <LazyScanner 
-                onResult={handleScanResult} 
-                onMultiResults={handleMultiCodeResults}
-                enableMultiScan={true}
-              />
-              
-              {/* Instructions */}
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Enhanced Single Scan Mode:</h3>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>Click "Start Scanning" to activate your camera</li>
-                  <li>Point your camera at any QR code or barcode</li>
-                  <li>Enhanced mode can detect multiple codes in the same frame</li>
-                  <li>Perfect for scanning individual codes or multiple codes at once</li>
-                  <li>Automatically detects and processes all visible QR codes</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Results Section */}
-            <div>
-              <ResultDisplay results={scanResults} onClear={handleClearResults} />
-            </div>
-          </div>
-        ) : scanMode === 'batch' ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Batch Scanner Section */}
-              <div>
-                <BatchScanner 
-                  onResult={handleBatchScanResult} 
-                  onBatchComplete={handleBatchComplete}
-                />
-              </div>
-              
-              {/* Instructions & Analytics */}
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Batch Scan Mode:</h3>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>Set target count (5-50 codes)</li>
-                    <li>Configure scan delay and duplicate handling</li>
-                    <li>Scanner continues automatically after each scan</li>
-                    <li>Auto-stops when target is reached</li>
-                    <li>Export results as CSV for bulk processing</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-blue-50 rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
-                  <h3 className="text-sm font-medium text-blue-900 mb-2">🚀 Batch Scanning Tips:</h3>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Organize QR codes in a grid layout</li>
-                    <li>• Use good lighting for faster scanning</li>
-                    <li>• Adjust scan delay if codes are too close</li>
-                    <li>• Enable duplicate skipping for inventory</li>
-                    <li>• Export to CSV for data processing</li>
-                  </ul>
-                </div>
-
-                {/* Real-time Analytics */}
-                <BatchAnalytics 
-                  results={batchSessionResults}
-                  isScanning={isBatchScanning}
-                  startTime={batchStartTime}
-                />
-              </div>
-            </div>
-            
-            {/* Full Results Display */}
-            <div>
-              <ResultDisplay results={scanResults} onClear={handleClearResults} />
-            </div>
-          </div>
-        ) : scanMode === 'multi' ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Multi-Code Scanner Section */}
-              <div>
-                <MultiCodeScanner onResults={handleMultiCodeResults} />
-              </div>
-              
-              {/* Instructions */}
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Image Upload Multi-Code Mode:</h3>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>Upload an image containing multiple QR codes</li>
-                    <li>All codes in the image are scanned simultaneously</li>
-                    <li>Perfect for scanning multiple codes at once</li>
-                    <li>Supports various image formats (JPEG, PNG, etc.)</li>
-                    <li>Works best with clear, well-lit images</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-green-50 rounded-lg shadow-lg p-4 border-l-4 border-green-500">
-                  <h3 className="text-sm font-medium text-green-900 mb-2">🎯 Image Upload Benefits:</h3>
-                  <ul className="text-sm text-green-800 space-y-1">
-                    <li>• Scan all QR codes in an image at once</li>
-                    <li>• No need to point camera at each code individually</li>
-                    <li>• Perfect for inventory sheets or code collections</li>
-                    <li>• Faster than real-time scanning for multiple codes</li>
-                    <li>• Works with screenshots, photos, or scanned documents</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            
-            {/* Full Results Display */}
-            <div>
-              <ResultDisplay results={scanResults} onClear={handleClearResults} />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* True Multi-Code Scanner Section */}
-              <div>
-                <TrueMultiCodeScanner
-                  onResults={handleMultiCodeResults}
-                  onSingleResult={handleScanResult}
-                />
-              </div>
-              
-              {/* Instructions */}
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">True Multi-Code Camera Mode:</h3>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>Real-time camera scanning with true multi-code detection</li>
-                    <li>Detects ALL QR codes in the camera view simultaneously</li>
-                    <li>Works with any arrangement: vertical, horizontal, grid, scattered</li>
-                    <li>No need to move camera between codes</li>
-                    <li>Uses advanced jsQR library for superior detection</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-blue-50 rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
-                  <h3 className="text-sm font-medium text-blue-900 mb-2">🚀 True Multi-Code Benefits:</h3>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Detects ALL QR codes in camera view simultaneously</li>
-                    <li>• Works with any arrangement: vertical, horizontal, grid</li>
-                    <li>• No need to move camera between codes</li>
-                    <li>• Real-time detection of multiple codes in single frame</li>
-                    <li>• Much faster and more efficient than traditional scanners</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            
-            {/* Full Results Display */}
-            <div>
-              <ResultDisplay results={scanResults} onClear={handleClearResults} />
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Install Prompt */}
-      <InstallPrompt />
+      <AnimatePresence>
+        {showInstallPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 left-4 right-4 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <Smartphone className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Install Multi-QR Scanner</h4>
+                  <p className="text-sm text-gray-600">Get the full app experience</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={dismissInstallPrompt}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Not now
+                </button>
+                <button
+                  onClick={handleInstallApp}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
+                >
+                  Install
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
-      <footer className="mt-12 py-6 border-t border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 text-center text-sm text-gray-600">
-          <p>QR & Barcode Scanner PWA - Works offline • Built with React & TypeScript!</p>
+      <footer className="mt-16 py-8 border-t border-gray-200 bg-white/50">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <QrCode className="w-5 h-5 text-blue-600" />
+            <span className="text-lg font-semibold text-gray-900">Multi-QR Scanner</span>
+          </div>
+          <p className="text-gray-600 text-sm">
+            Advanced real-time multi-QR code detection • Built with React & TypeScript • PWA Ready
+          </p>
         </div>
       </footer>
     </div>
