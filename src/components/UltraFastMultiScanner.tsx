@@ -89,9 +89,9 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
       const worker = new Worker(URL.createObjectURL(blob));
       
       worker.onmessage = (e) => {
-        const { success, regionId, data, location } = e.data;
+        const { success, data, location } = e.data;
         if (success && data) {
-          addDetectedCode(data, location, regionId);
+          addDetectedCode(data, location);
         }
       };
       
@@ -108,7 +108,7 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
   }, []);
 
   // Ultra-fast code detection with Set-based deduplication
-  const addDetectedCode = useCallback((text: string, location: any, regionId: string) => {
+  const addDetectedCode = useCallback((text: string, location: any) => {
     const now = performance.now();
     
     // Check if this code is already in our unique set
