@@ -110,203 +110,131 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       console.error("Full frame scan error:", error);
     }
 
-    // Strategy 2: Scan top half of the frame (for vertically stacked QR codes)
-    try {
-      const topHalfCanvas = document.createElement("canvas");
-      const topHalfCtx = topHalfCanvas.getContext("2d");
-      if (topHalfCtx) {
-        topHalfCanvas.width = canvas.width;
-        topHalfCanvas.height = Math.floor(canvas.height / 2);
-        topHalfCtx.drawImage(
-          canvas,
-          0,
-          0,
-          canvas.width,
-          Math.floor(canvas.height / 2),
-          0,
-          0,
-          canvas.width,
-          Math.floor(canvas.height / 2)
-        );
+    // Strategy 2: Scan 3x3 grid (9 regions) for better multi-code detection
+    const gridSize = 3;
+    const regionWidth = Math.floor(canvas.width / gridSize);
+    const regionHeight = Math.floor(canvas.height / gridSize);
 
-        const topHalfImageData = topHalfCtx.getImageData(
-          0,
-          0,
-          topHalfCanvas.width,
-          topHalfCanvas.height
-        );
-        const result = jsQR(
-          topHalfImageData.data,
-          topHalfImageData.width,
-          topHalfImageData.height
-        );
-        if (
-          result &&
-          !scannedCodesSetRef.current.has(result.data) &&
-          !newCodes.has(result.data)
-        ) {
-          console.log("Found QR code in top half:", result.data);
-          results.push({
-            id: `true-multi-top-${Date.now()}-${Math.random()}`,
-            text: result.data,
-            timestamp: new Date(),
-            format: "QR_CODE",
-            source: "camera" as const,
-          });
-          newCodes.add(result.data);
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        try {
+          const regionCanvas = document.createElement("canvas");
+          const regionCtx = regionCanvas.getContext("2d");
+          if (regionCtx) {
+            regionCanvas.width = regionWidth;
+            regionCanvas.height = regionHeight;
+
+            // Extract region from main canvas
+            regionCtx.drawImage(
+              canvas,
+              col * regionWidth,
+              row * regionHeight,
+              regionWidth,
+              regionHeight,
+              0,
+              0,
+              regionWidth,
+              regionHeight
+            );
+
+            const regionImageData = regionCtx.getImageData(
+              0,
+              0,
+              regionWidth,
+              regionHeight
+            );
+
+            const result = jsQR(
+              regionImageData.data,
+              regionImageData.width,
+              regionImageData.height
+            );
+
+            if (
+              result &&
+              !scannedCodesSetRef.current.has(result.data) &&
+              !newCodes.has(result.data)
+            ) {
+              console.log(
+                `Found QR code in region [${row},${col}]:`,
+                result.data
+              );
+              results.push({
+                id: `true-multi-grid-${row}-${col}-${Date.now()}-${Math.random()}`,
+                text: result.data,
+                timestamp: new Date(),
+                format: "QR_CODE",
+                source: "camera" as const,
+              });
+              newCodes.add(result.data);
+            }
+          }
+        } catch (error) {
+          console.error(`Grid region [${row},${col}] scan error:`, error);
         }
       }
-    } catch (error) {
-      console.error("Top half scan error:", error);
     }
 
-    // Strategy 3: Scan bottom half of the frame
-    try {
-      const bottomHalfCanvas = document.createElement("canvas");
-      const bottomHalfCtx = bottomHalfCanvas.getContext("2d");
-      if (bottomHalfCtx) {
-        bottomHalfCanvas.width = canvas.width;
-        bottomHalfCanvas.height = Math.floor(canvas.height / 2);
-        bottomHalfCtx.drawImage(
-          canvas,
-          0,
-          Math.floor(canvas.height / 2),
-          canvas.width,
-          Math.floor(canvas.height / 2),
-          0,
-          0,
-          canvas.width,
-          Math.floor(canvas.height / 2)
-        );
+    // Strategy 3: Scan quadrants as backup
+    const quadrants = [
+      { name: "top-left", x: 0, y: 0, w: 0.5, h: 0.5 },
+      { name: "top-right", x: 0.5, y: 0, w: 0.5, h: 0.5 },
+      { name: "bottom-left", x: 0, y: 0.5, w: 0.5, h: 0.5 },
+      { name: "bottom-right", x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+    ];
 
-        const bottomHalfImageData = bottomHalfCtx.getImageData(
-          0,
-          0,
-          bottomHalfCanvas.width,
-          bottomHalfCanvas.height
-        );
-        const result = jsQR(
-          bottomHalfImageData.data,
-          bottomHalfImageData.width,
-          bottomHalfImageData.height
-        );
-        if (
-          result &&
-          !scannedCodesSetRef.current.has(result.data) &&
-          !newCodes.has(result.data)
-        ) {
-          console.log("Found QR code in bottom half:", result.data);
-          results.push({
-            id: `true-multi-bottom-${Date.now()}-${Math.random()}`,
-            text: result.data,
-            timestamp: new Date(),
-            format: "QR_CODE",
-            source: "camera" as const,
-          });
-          newCodes.add(result.data);
+    for (const quadrant of quadrants) {
+      try {
+        const quadrantCanvas = document.createElement("canvas");
+        const quadrantCtx = quadrantCanvas.getContext("2d");
+        if (quadrantCtx) {
+          quadrantCanvas.width = Math.floor(canvas.width * quadrant.w);
+          quadrantCanvas.height = Math.floor(canvas.height * quadrant.h);
+
+          quadrantCtx.drawImage(
+            canvas,
+            Math.floor(canvas.width * quadrant.x),
+            Math.floor(canvas.height * quadrant.y),
+            Math.floor(canvas.width * quadrant.w),
+            Math.floor(canvas.height * quadrant.h),
+            0,
+            0,
+            quadrantCanvas.width,
+            quadrantCanvas.height
+          );
+
+          const quadrantImageData = quadrantCtx.getImageData(
+            0,
+            0,
+            quadrantCanvas.width,
+            quadrantCanvas.height
+          );
+
+          const result = jsQR(
+            quadrantImageData.data,
+            quadrantImageData.width,
+            quadrantImageData.height
+          );
+
+          if (
+            result &&
+            !scannedCodesSetRef.current.has(result.data) &&
+            !newCodes.has(result.data)
+          ) {
+            console.log(`Found QR code in ${quadrant.name}:`, result.data);
+            results.push({
+              id: `true-multi-${quadrant.name}-${Date.now()}-${Math.random()}`,
+              text: result.data,
+              timestamp: new Date(),
+              format: "QR_CODE",
+              source: "camera" as const,
+            });
+            newCodes.add(result.data);
+          }
         }
+      } catch (error) {
+        console.error(`${quadrant.name} scan error:`, error);
       }
-    } catch (error) {
-      console.error("Bottom half scan error:", error);
-    }
-
-    // Strategy 4: Scan left half and right half (for horizontally arranged QR codes)
-    try {
-      const leftHalfCanvas = document.createElement("canvas");
-      const leftHalfCtx = leftHalfCanvas.getContext("2d");
-      if (leftHalfCtx) {
-        leftHalfCanvas.width = Math.floor(canvas.width / 2);
-        leftHalfCanvas.height = canvas.height;
-        leftHalfCtx.drawImage(
-          canvas,
-          0,
-          0,
-          Math.floor(canvas.width / 2),
-          canvas.height,
-          0,
-          0,
-          Math.floor(canvas.width / 2),
-          canvas.height
-        );
-
-        const leftHalfImageData = leftHalfCtx.getImageData(
-          0,
-          0,
-          leftHalfCanvas.width,
-          leftHalfCanvas.height
-        );
-        const result = jsQR(
-          leftHalfImageData.data,
-          leftHalfImageData.width,
-          leftHalfImageData.height
-        );
-        if (
-          result &&
-          !scannedCodesSetRef.current.has(result.data) &&
-          !newCodes.has(result.data)
-        ) {
-          console.log("Found QR code in left half:", result.data);
-          results.push({
-            id: `true-multi-left-${Date.now()}-${Math.random()}`,
-            text: result.data,
-            timestamp: new Date(),
-            format: "QR_CODE",
-            source: "camera" as const,
-          });
-          newCodes.add(result.data);
-        }
-      }
-    } catch (error) {
-      console.error("Left half scan error:", error);
-    }
-
-    try {
-      const rightHalfCanvas = document.createElement("canvas");
-      const rightHalfCtx = rightHalfCanvas.getContext("2d");
-      if (rightHalfCtx) {
-        rightHalfCanvas.width = Math.floor(canvas.width / 2);
-        rightHalfCanvas.height = canvas.height;
-        rightHalfCtx.drawImage(
-          canvas,
-          Math.floor(canvas.width / 2),
-          0,
-          Math.floor(canvas.width / 2),
-          canvas.height,
-          0,
-          0,
-          Math.floor(canvas.width / 2),
-          canvas.height
-        );
-
-        const rightHalfImageData = rightHalfCtx.getImageData(
-          0,
-          0,
-          rightHalfCanvas.width,
-          rightHalfCanvas.height
-        );
-        const result = jsQR(
-          rightHalfImageData.data,
-          rightHalfImageData.width,
-          rightHalfImageData.height
-        );
-        if (
-          result &&
-          !scannedCodesSetRef.current.has(result.data) &&
-          !newCodes.has(result.data)
-        ) {
-          console.log("Found QR code in right half:", result.data);
-          results.push({
-            id: `true-multi-right-${Date.now()}-${Math.random()}`,
-            text: result.data,
-            timestamp: new Date(),
-            format: "QR_CODE",
-            source: "camera" as const,
-          });
-          newCodes.add(result.data);
-        }
-      }
-    } catch (error) {
-      console.error("Right half scan error:", error);
     }
 
     // Report all found codes
@@ -341,10 +269,13 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         });
       });
 
-      if (results.length === 1 && onSingleResult) {
-        onSingleResult(results[0]);
-      } else if (results.length > 1 && onResults) {
-        onResults(results);
+      if (results.length > 0) {
+        if (results.length === 1 && onSingleResult) {
+          onSingleResult(results[0]);
+        }
+        if (onResults) {
+          onResults(results);
+        }
       }
     }
   }, [onResults, onSingleResult, maxCodes]);
@@ -357,8 +288,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 500) {
-      // Scan every 500ms - EXACTLY like test file
+    if (now - lastScanTimeRef.current > 200) {
+      // Scan every 200ms for faster detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
