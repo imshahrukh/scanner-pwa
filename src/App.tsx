@@ -77,14 +77,17 @@ function App() {
   }, [scanResults]);
 
   const handleScanResults = (results: ScanResult[]) => {
+    console.log('Received results:', results.length, 'codes');
+    
     setScanResults(prev => {
-      // Filter out duplicates based on text content
+      // Filter out duplicates within this session only
       const newUniqueResults = results.filter(result => {
-        if (uniqueCodesSet.current.has(result.text)) {
-          console.log('Duplicate code filtered out:', result.text.substring(0, 30) + '...');
+        // Check if this code was already added in this session
+        const isDuplicate = prev.some(existing => existing.text === result.text);
+        if (isDuplicate) {
+          console.log('Session duplicate filtered out:', result.text.substring(0, 30) + '...');
           return false;
         } else {
-          uniqueCodesSet.current.add(result.text);
           console.log('New unique code added:', result.text.substring(0, 30) + '...');
           return true;
         }
@@ -134,6 +137,8 @@ function App() {
   const dismissInstallPrompt = () => {
     setShowInstallPrompt(false);
   };
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">

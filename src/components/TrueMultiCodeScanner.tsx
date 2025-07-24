@@ -288,7 +288,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 200) {
+    if (now - lastScanTimeRef.current > 100) {
       // Scan every 200ms for faster detection
       console.log("Running scan frame...");
       detectMultipleCodes();
@@ -304,6 +304,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     setError(null);
     scannedCodesSetRef.current = new Set();
     setScannedCount(0);
+    
+    // Clear any existing results to start fresh
+    if (onResults) {
+      onResults([]); // Send empty results to clear the display
+    }
     
     // Go full-screen with the video element
     if (videoRef.current) {
