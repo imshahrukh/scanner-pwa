@@ -288,7 +288,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 100) {
+    if (now - lastScanTimeRef.current > 50) {
       // Scan every 200ms for faster detection
       console.log("Running scan frame...");
       detectMultipleCodes();
