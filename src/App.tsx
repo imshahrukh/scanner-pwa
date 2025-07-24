@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // PWA install prompt types
 interface BeforeInstallPromptEvent extends Event {
@@ -18,7 +18,7 @@ import {
   WifiOff,
   CheckCircle
 } from 'lucide-react';
-import UltraFastMultiScanner from './components/UltraFastMultiScanner';
+import TrueMultiCodeScanner from './components/TrueMultiCodeScanner';
 import UltraFastResultsDisplay from './components/UltraFastResultsDisplay';
 import UltraFastDemoSetup from './components/UltraFastDemoSetup';
 import type { ScanResult } from './types';
@@ -28,6 +28,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const uniqueCodesSet = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // Handle online/offline status
@@ -47,6 +48,8 @@ function App() {
           timestamp: new Date(result.timestamp),
         }));
         setScanResults(results);
+        // Add existing codes to unique set
+        results.forEach(result => uniqueCodesSet.current.add(result.text));
       } catch (error) {
         console.error('Failed to load saved results:', error);
       }
@@ -75,7 +78,41 @@ function App() {
 
   const handleScanResults = (results: ScanResult[]) => {
     setScanResults(prev => {
-      const newResults = [...results, ...prev];
+      // Filter out duplicates based on text content
+      const newUniqueResults = results.filter(result => {
+        if (uniqueCodesSet.current.has(result.text)) {
+          console.log('Duplicate code filtered out:', result.text.substring(0, 30) + '...');
+          return false;
+        } else {
+          uniqueCodesSet.current.add(result.text);
+          console.log('New unique code added:', result.text.substring(0, 30) + '...');
+          return true;
+        }
+      });
+
+      if (newUniqueResults.length > 0) {
+        const updatedResults = [...newUniqueResults, ...prev];
+        // Keep only last 100 results
+        return updatedResults.slice(0, 100);
+      }
+      
+      return prev;
+    });
+  };
+
+  const handleSingleResult = (result: ScanResult) => {
+    // Check if this result is already in our unique set
+    if (uniqueCodesSet.current.has(result.text)) {
+      console.log('Single result duplicate filtered out:', result.text.substring(0, 30) + '...');
+      return;
+    }
+
+    // Add to unique set and results
+    uniqueCodesSet.current.add(result.text);
+    console.log('Single result new code added:', result.text.substring(0, 30) + '...');
+    
+    setScanResults(prev => {
+      const newResults = [result, ...prev];
       // Keep only last 100 results
       return newResults.slice(0, 100);
     });
@@ -161,18 +198,18 @@ function App() {
               {/* Scanner Title */}
               <div className="text-center">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  ⚡ Ultra-Fast Multi-QR Scanner
+                  ⚡ True Multi-Code Scanner
                 </h2>
                 <p className="text-gray-600 max-w-2xl mx-auto">
-                  <strong>Revolutionary Technology:</strong> Scan up to 50 QR codes simultaneously at 60fps with real-time processing. 
-                  Powered by Web Workers and parallel algorithms for unmatched performance.
+                  <strong>Revolutionary Technology:</strong> Detects ALL QR codes in the camera view simultaneously. 
+                  Works with any arrangement: vertical, horizontal, grid, or scattered QR codes.
                 </p>
               </div>
 
-              {/* Ultra-Fast Scanner Component */}
-              <UltraFastMultiScanner
+              {/* True Multi-Code Scanner Component */}
+              <TrueMultiCodeScanner
                 onResults={handleScanResults}
-                maxCodes={50}
+                onSingleResult={handleSingleResult}
               />
               
               {/* Demo Setup Component */}
@@ -189,9 +226,9 @@ function App() {
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                     <Zap className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">⚡ 60fps Processing</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">⚡ Simultaneous Detection</h3>
                   <p className="text-sm text-gray-600">
-                    Ultra-fast parallel processing with Web Workers for real-time detection of up to 50 codes simultaneously.
+                    Detects ALL QR codes in the camera view at the exact same timestamp. No repositioning needed.
                   </p>
                 </motion.div>
 
@@ -202,9 +239,9 @@ function App() {
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                     <Camera className="w-6 h-6 text-green-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">🎯 Grid Scanning</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">🎯 Multi-Region Scanning</h3>
                   <p className="text-sm text-gray-600">
-                    Intelligent grid-based region scanning with parallel workers for maximum coverage and accuracy.
+                    Scans full frame, top/bottom halves, and left/right halves for maximum coverage.
                   </p>
                 </motion.div>
 
@@ -215,9 +252,9 @@ function App() {
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                     <Smartphone className="w-6 h-6 text-purple-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">🚀 Ultra-Lightweight</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">🚀 Any Arrangement</h3>
                   <p className="text-sm text-gray-600">
-                    Minimal memory footprint with efficient algorithms and optimized batch updates for maximum performance.
+                    Works with vertical, horizontal, grid, or scattered QR code arrangements.
                   </p>
                 </motion.div>
               </div>

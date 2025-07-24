@@ -26,6 +26,8 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
   const animationFrameRef = useRef<number>(0);
   const workerPoolRef = useRef<Worker[]>([]);
   const processingRef = useRef<boolean>(false);
+  const uniqueCodesSet = useRef<Set<string>>(new Set());
+  const frameCountRef = useRef<number>(0);
   
   const [isScanning, setIsScanning] = useState(false);
   const [detectedCodes, setDetectedCodes] = useState<DetectedCode[]>([]);
@@ -105,17 +107,21 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
     };
   }, []);
 
-  // Ultra-fast code detection with optimized algorithms
+  // Ultra-fast code detection with Set-based deduplication
   const addDetectedCode = useCallback((text: string, location: any, regionId: string) => {
     const now = performance.now();
-    console.log(regionId);
-    const codeId = `${text}_${Math.floor(location.topLeftCorner.x)}_${Math.floor(location.topLeftCorner.y)}`;
     
-    // Skip if we've seen this code very recently (within 100ms)
-    const existing = codeMapRef.current.get(text);
-    if (existing && (now - existing.timestamp) < 100) {
+    // Check if this code is already in our unique set
+    if (uniqueCodesSet.current.has(text)) {
+      console.log('Code already exists:', text.substring(0, 30) + '...');
       return;
     }
+    
+    // Add to unique set
+    uniqueCodesSet.current.add(text);
+    console.log('NEW CODE DETECTED:', text.substring(0, 30) + '...');
+    
+    const codeId = `${text}_${Math.floor(location.topLeftCorner.x)}_${Math.floor(location.topLeftCorner.y)}`;
     
     const newCode: DetectedCode = {
       id: codeId,
@@ -153,6 +159,12 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
       
       onResults(scanResults);
       lastUpdateTimeRef.current = now;
+      
+      // Check if we've reached max codes and stop scanning
+      if (uniqueCodesSet.current.size >= maxCodes) {
+        console.log(`Reached max codes (${maxCodes}), stopping scanner`);
+        stopScanning();
+      }
     }
   }, [maxCodes, onResults]);
 
@@ -165,6 +177,13 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
     const ctx = canvas.getContext('2d');
     
     if (!ctx || video.videoWidth === 0 || video.videoHeight === 0) return;
+    
+    // Process every 3rd frame for better performance (20 FPS effective)
+    frameCountRef.current++;
+    if (frameCountRef.current % 3 !== 0) {
+      processingRef.current = false;
+      return;
+    }
     
     processingRef.current = true;
     const startTime = performance.now();
@@ -238,7 +257,7 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
     
     setStats({
       fps: fpsCounterRef.current.length,
-      codesFound: codeMapRef.current.size,
+      codesFound: uniqueCodesSet.current.size,
       processingTime: Math.round(processingTime),
       regionsScanned: regionCount
     });
@@ -270,7 +289,7 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
           facingMode: 'environment',
           width: { ideal: 1920, max: 1920 },
           height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 60, max: 60 }
+          frameRate: { ideal: 30, max: 30 }
         }
       });
       
@@ -298,12 +317,15 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
     // Clear detected codes
     codeMapRef.current.clear();
     setDetectedCodes([]);
+    uniqueCodesSet.current.clear();
+    frameCountRef.current = 0;
   };
 
   // Clear all results
   const clearResults = () => {
     codeMapRef.current.clear();
     setDetectedCodes([]);
+    uniqueCodesSet.current.clear();
   };
 
   // Start scanning when component mounts
@@ -330,7 +352,7 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
           </div>
           <div className="text-right">
             <div className="text-green-400 font-mono text-lg">{stats.fps} FPS</div>
-            <div className="text-blue-400 text-xs">{stats.codesFound}/{maxCodes} codes</div>
+            <div className="text-blue-400 text-xs">{uniqueCodesSet.current.size}/{maxCodes} codes</div>
           </div>
         </div>
       </div>
@@ -386,6 +408,13 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
             PROCESSING
           </div>
         )}
+        
+        {/* Auto-stop indicator */}
+        {uniqueCodesSet.current.size >= maxCodes && (
+          <div className="absolute top-4 left-4 bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">
+            MAX CODES REACHED - STOPPED
+          </div>
+        )}
       </div>
 
       {/* Controls */}
@@ -415,7 +444,7 @@ const UltraFastMultiScanner: React.FC<UltraFastMultiScannerProps> = ({
             <div className="flex gap-4">
               <span>⚡ {stats.processingTime}ms</span>
               <span>🔍 {stats.regionsScanned} regions</span>
-              <span>📊 {stats.codesFound} found</span>
+              <span>📊 {uniqueCodesSet.current.size} found</span>
             </div>
           </div>
         </div>

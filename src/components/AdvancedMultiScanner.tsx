@@ -2,26 +2,35 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scan, Zap, Play, Pause, RotateCcw, Download } from 'lucide-react';
 import type { ScanResult, CameraState, ProcessingStats } from '../types';
-import { BrowserMultiFormatReader } from '@zxing/library';
+import jsQR from 'jsqr';
 
 interface AdvancedMultiScannerProps {
   onResults: (results: ScanResult[]) => void;
   onSingleResult: (result: ScanResult) => void;
-  onStatsUpdate: (stats: ProcessingStats) => void;
+}
+
+interface DetectedCode {
+  text: string;
+  confidence: number;
+  boundingBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
   onResults,
-  onSingleResult,
-  onStatsUpdate
+  onSingleResult
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>(0);
   const processingRef = useRef<boolean>(false);
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const lastDetectionTimeRef = useRef<number>(0);
-  const lastDetectedCodesRef = useRef<Set<string>>(new Set());
+  const uniqueCodesSet = useRef<Set<string>>(new Set());
+  const frameCountRef = useRef<number>(0);
+  const shouldStopRef = useRef<boolean>(false); // Global stop flag
 
   const [cameraState, setCameraState] = useState<CameraState>({
     isActive: false,
@@ -40,18 +49,9 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
   });
 
   const [detectedCodes, setDetectedCodes] = useState<ScanResult[]>([]);
+  const [currentFrameCodes, setCurrentFrameCodes] = useState<DetectedCode[]>([]);
 
-  // Initialize ZXing reader
-  useEffect(() => {
-    readerRef.current = new BrowserMultiFormatReader();
-    return () => {
-      if (readerRef.current) {
-        readerRef.current.reset();
-      }
-    };
-  }, []);
-
-  // Initialize camera
+  // Initialize camera with optimal settings
   const initializeCamera = useCallback(async () => {
     console.log('Initializing camera...');
     setCameraState(prev => ({ ...prev, isInitializing: true, error: null }));
@@ -64,8 +64,9 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
       const constraints = {
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, min: 15 }
         }
       };
 
@@ -114,10 +115,6 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
       cancelAnimationFrame(animationFrameRef.current);
     }
 
-    if (readerRef.current) {
-      readerRef.current.reset();
-    }
-
     setCameraState({
       isActive: false,
       isInitializing: false,
@@ -127,8 +124,9 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
     });
 
     setDetectedCodes([]);
-    lastDetectedCodesRef.current.clear();
-    lastDetectionTimeRef.current = 0;
+    setCurrentFrameCodes([]);
+    uniqueCodesSet.current.clear();
+    frameCountRef.current = 0;
     setStats({
       framesProcessed: 0,
       codesDetected: 0,
@@ -138,9 +136,231 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
     });
   }, [cameraState.stream]);
 
-  // Process frame for QR codes using ZXing
+  // Enhanced multi-region QR detection
+  const detectQRCodes = useCallback((imageData: ImageData): DetectedCode[] => {
+    const results: DetectedCode[] = [];
+    const newCodes = new Set<string>();
+    
+    try {
+      console.log('Starting multi-region QR detection on image:', imageData.width, 'x', imageData.height);
+      
+      // Strategy 1: Full frame scan
+      try {
+        const result = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth" as const,
+        });
+        if (result && !uniqueCodesSet.current.has(result.data)) {
+          console.log('Found QR code in full frame:', result.data.substring(0, 30) + '...');
+          results.push({
+            text: result.data,
+            confidence: 1.0,
+            boundingBox: {
+              x: result.location.topLeftCorner.x,
+              y: result.location.topLeftCorner.y,
+              width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+              height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+            }
+          });
+          newCodes.add(result.data);
+        }
+      } catch (error) {
+        console.log('Full frame scan error:', error);
+      }
+      
+      // Strategy 2: Top half scan (for vertically stacked QR codes)
+      try {
+        const topHalfCanvas = document.createElement('canvas');
+        const topHalfCtx = topHalfCanvas.getContext('2d');
+        if (topHalfCtx) {
+          topHalfCanvas.width = imageData.width;
+          topHalfCanvas.height = Math.floor(imageData.height / 2);
+          
+          // Create top half image data
+          const topHalfImageData = new ImageData(
+            new Uint8ClampedArray(imageData.data.slice(0, imageData.width * Math.floor(imageData.height / 2) * 4)),
+            imageData.width,
+            Math.floor(imageData.height / 2)
+          );
+          
+          const result = jsQR(topHalfImageData.data, topHalfImageData.width, topHalfImageData.height, {
+            inversionAttempts: "attemptBoth" as const,
+          });
+          if (result && !uniqueCodesSet.current.has(result.data) && !newCodes.has(result.data)) {
+            console.log('Found QR code in top half:', result.data.substring(0, 30) + '...');
+            results.push({
+              text: result.data,
+              confidence: 1.0,
+              boundingBox: {
+                x: result.location.topLeftCorner.x,
+                y: result.location.topLeftCorner.y,
+                width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+                height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+              }
+            });
+            newCodes.add(result.data);
+          }
+        }
+      } catch (error) {
+        console.log('Top half scan error:', error);
+      }
+      
+      // Strategy 3: Bottom half scan
+      try {
+        const bottomHalfCanvas = document.createElement('canvas');
+        const bottomHalfCtx = bottomHalfCanvas.getContext('2d');
+        if (bottomHalfCtx) {
+          bottomHalfCanvas.width = imageData.width;
+          bottomHalfCanvas.height = Math.floor(imageData.height / 2);
+          
+          // Create bottom half image data
+          const startIndex = imageData.width * Math.floor(imageData.height / 2) * 4;
+          const bottomHalfImageData = new ImageData(
+            new Uint8ClampedArray(imageData.data.slice(startIndex)),
+            imageData.width,
+            Math.floor(imageData.height / 2)
+          );
+          
+          const result = jsQR(bottomHalfImageData.data, bottomHalfImageData.width, bottomHalfImageData.height, {
+            inversionAttempts: "attemptBoth" as const,
+          });
+          if (result && !uniqueCodesSet.current.has(result.data) && !newCodes.has(result.data)) {
+            console.log('Found QR code in bottom half:', result.data.substring(0, 30) + '...');
+            results.push({
+              text: result.data,
+              confidence: 1.0,
+              boundingBox: {
+                x: result.location.topLeftCorner.x,
+                y: result.location.topLeftCorner.y + Math.floor(imageData.height / 2),
+                width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+                height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+              }
+            });
+            newCodes.add(result.data);
+          }
+        }
+      } catch (error) {
+        console.log('Bottom half scan error:', error);
+      }
+      
+      // Strategy 4: Left half scan
+      try {
+        const leftHalfCanvas = document.createElement('canvas');
+        const leftHalfCtx = leftHalfCanvas.getContext('2d');
+        if (leftHalfCtx) {
+          leftHalfCanvas.width = Math.floor(imageData.width / 2);
+          leftHalfCanvas.height = imageData.height;
+          
+          // Create left half image data
+          const leftHalfData = new Uint8ClampedArray(Math.floor(imageData.width / 2) * imageData.height * 4);
+          for (let y = 0; y < imageData.height; y++) {
+            for (let x = 0; x < Math.floor(imageData.width / 2); x++) {
+              const srcIndex = (y * imageData.width + x) * 4;
+              const dstIndex = (y * Math.floor(imageData.width / 2) + x) * 4;
+              leftHalfData[dstIndex] = imageData.data[srcIndex];
+              leftHalfData[dstIndex + 1] = imageData.data[srcIndex + 1];
+              leftHalfData[dstIndex + 2] = imageData.data[srcIndex + 2];
+              leftHalfData[dstIndex + 3] = imageData.data[srcIndex + 3];
+            }
+          }
+          
+          const leftHalfImageData = new ImageData(leftHalfData, Math.floor(imageData.width / 2), imageData.height);
+          const result = jsQR(leftHalfImageData.data, leftHalfImageData.width, leftHalfImageData.height, {
+            inversionAttempts: "attemptBoth" as const,
+          });
+          if (result && !uniqueCodesSet.current.has(result.data) && !newCodes.has(result.data)) {
+            console.log('Found QR code in left half:', result.data.substring(0, 30) + '...');
+            results.push({
+              text: result.data,
+              confidence: 1.0,
+              boundingBox: {
+                x: result.location.topLeftCorner.x,
+                y: result.location.topLeftCorner.y,
+                width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+                height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+              }
+            });
+            newCodes.add(result.data);
+          }
+        }
+      } catch (error) {
+        console.log('Left half scan error:', error);
+      }
+      
+      // Strategy 5: Right half scan
+      try {
+        const rightHalfCanvas = document.createElement('canvas');
+        const rightHalfCtx = rightHalfCanvas.getContext('2d');
+        if (rightHalfCtx) {
+          rightHalfCanvas.width = Math.floor(imageData.width / 2);
+          rightHalfCanvas.height = imageData.height;
+          
+          // Create right half image data
+          const rightHalfData = new Uint8ClampedArray(Math.floor(imageData.width / 2) * imageData.height * 4);
+          for (let y = 0; y < imageData.height; y++) {
+            for (let x = 0; x < Math.floor(imageData.width / 2); x++) {
+              const srcIndex = (y * imageData.width + (x + Math.floor(imageData.width / 2))) * 4;
+              const dstIndex = (y * Math.floor(imageData.width / 2) + x) * 4;
+              rightHalfData[dstIndex] = imageData.data[srcIndex];
+              rightHalfData[dstIndex + 1] = imageData.data[srcIndex + 1];
+              rightHalfData[dstIndex + 2] = imageData.data[srcIndex + 2];
+              rightHalfData[dstIndex + 3] = imageData.data[srcIndex + 3];
+            }
+          }
+          
+          const rightHalfImageData = new ImageData(rightHalfData, Math.floor(imageData.width / 2), imageData.height);
+          const result = jsQR(rightHalfImageData.data, rightHalfImageData.width, rightHalfImageData.height, {
+            inversionAttempts: "attemptBoth" as const,
+          });
+          if (result && !uniqueCodesSet.current.has(result.data) && !newCodes.has(result.data)) {
+            console.log('Found QR code in right half:', result.data.substring(0, 30) + '...');
+            results.push({
+              text: result.data,
+              confidence: 1.0,
+              boundingBox: {
+                x: result.location.topLeftCorner.x + Math.floor(imageData.width / 2),
+                y: result.location.topLeftCorner.y,
+                width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+                height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+              }
+            });
+            newCodes.add(result.data);
+          }
+        }
+      } catch (error) {
+        console.log('Right half scan error:', error);
+      }
+      
+      if (results.length > 0) {
+        console.log(`Multi-region detection found ${results.length} QR code(s) simultaneously`);
+      } else {
+        console.log('No QR codes found in any region');
+      }
+      
+    } catch (error) {
+      console.log('Multi-region QR detection error:', error);
+    }
+    
+    return results;
+  }, []);
+
+  // Process frame for QR codes
   const processFrame = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || processingRef.current || !readerRef.current) return;
+    // CRITICAL: Check global stop flag first
+    if (shouldStopRef.current) {
+      console.log('GLOBAL STOP FLAG - STOPPING ALL PROCESSING');
+      processingRef.current = false;
+      return;
+    }
+
+    // CRITICAL: Stop immediately if camera is not active
+    if (!cameraState.isActive) {
+      console.log('CAMERA INACTIVE - STOPPING ALL PROCESSING');
+      shouldStopRef.current = true;
+      processingRef.current = false;
+      return;
+    }
+
+    if (!videoRef.current || !canvasRef.current || processingRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -150,26 +370,23 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
 
     // Check if video has valid dimensions
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log('Video dimensions not ready yet, skipping frame processing');
       processingRef.current = false;
       return;
     }
 
     // Check if video is actually playing
     if (video.paused || video.ended) {
-      console.log('Video not playing, skipping frame processing');
       processingRef.current = false;
       return;
     }
 
-    // Debounce detection - only process every 500ms
-    const now = Date.now();
-    if (now - lastDetectionTimeRef.current < 500) {
+    // Process every 2nd frame for faster detection (15 FPS effective)
+    frameCountRef.current++;
+    if (frameCountRef.current % 2 !== 0) {
       processingRef.current = false;
       return;
     }
 
-    console.log('Processing frame...');
     processingRef.current = true;
     const startTime = performance.now();
 
@@ -181,103 +398,155 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
       // Draw video frame to canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Create an image from the canvas
-      const image = new Image();
-      image.src = canvas.toDataURL();
-      
-      // Wait for image to load
-      await new Promise((resolve) => {
-        image.onload = resolve;
-      });
+      // Get image data for processing
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-      // Use ZXing to detect QR codes
-      const result = await readerRef.current.decodeFromImage(image);
+      // Detect QR codes
+      const frameCodes = detectQRCodes(imageData);
       
-      if (result) {
-        const codeText = result.getText();
-        console.log('QR code detected:', codeText.substring(0, 30) + '...');
+      if (frameCodes.length > 0) {
+        console.log(`Detected ${frameCodes.length} QR codes in frame`);
         
-        // Check if this code was already detected in this frame
-        if (lastDetectedCodesRef.current.has(codeText)) {
-          console.log('Code already detected in this frame, skipping:', codeText.substring(0, 20));
-          return;
+        // Check for truly new codes using Set
+        const newCodes: DetectedCode[] = [];
+        for (const code of frameCodes) {
+          if (!uniqueCodesSet.current.has(code.text)) {
+            uniqueCodesSet.current.add(code.text);
+            newCodes.push(code);
+            console.log('NEW CODE DETECTED:', code.text.substring(0, 30) + '...');
+          }
         }
-        
-        // Check if this is a completely new code (not in detectedCodes)
-        const isNewCode = !detectedCodes.some(existing => existing.text === codeText);
-        
-        if (isNewCode) {
-          const scanResult: ScanResult = {
-            id: `${Date.now()}-${Math.random()}`,
-            text: codeText,
+
+        if (newCodes.length > 0) {
+          const newResults: ScanResult[] = newCodes.map((code, index) => ({
+            id: `${Date.now()}-${index}`,
+            text: code.text,
             format: 'QR_CODE',
             timestamp: new Date(),
-            confidence: 1.0,
-            boundingBox: {
-              x: result.getResultPoints()?.[0]?.getX() || 0,
-              y: result.getResultPoints()?.[0]?.getY() || 0,
-              width: 100, // Default width
-              height: 100  // Default height
-            },
+            confidence: code.confidence,
+            boundingBox: code.boundingBox,
             source: 'camera',
             isDuplicate: false
-          };
+          }));
+
+          setDetectedCodes(prev => [...prev, ...newResults]);
+          onResults(newResults);
+          newResults.forEach(result => onSingleResult(result));
           
-          setDetectedCodes(prev => [...prev, scanResult]);
-          onResults([scanResult]);
-          onSingleResult(scanResult);
-          console.log('New QR code added:', codeText.substring(0, 30) + '...');
+          console.log(`Added ${newCodes.length} new QR codes to results`);
           
-          // Update last detection time
-          lastDetectionTimeRef.current = now;
+          // Auto-stop when we have detected codes
+          if (uniqueCodesSet.current.size >= 2) {
+            console.log('Detected 2 codes, auto-stopping camera');
+            shouldStopRef.current = true;
+            stopCamera();
+            return; // Exit immediately after stopping
+          }
         }
-        
-        // Add to current frame detected codes
-        lastDetectedCodesRef.current.add(codeText);
+
+        setCurrentFrameCodes(frameCodes);
       }
 
-      // Update stats
-      const processingTime = performance.now() - startTime;
-      setStats(prev => {
-        const newFramesProcessed = prev.framesProcessed + 1;
-        const newAverageTime = (prev.averageProcessingTime * prev.framesProcessed + processingTime) / newFramesProcessed;
-        
-        return {
-          framesProcessed: newFramesProcessed,
-          codesDetected: detectedCodes.length,
-          averageProcessingTime: newAverageTime,
-          fps: 1000 / (processingTime + 200), // 5 FPS target
-          lastUpdate: new Date()
-        };
-      });
+      // Update stats only if camera is still active
+      if (cameraState.isActive && !shouldStopRef.current) {
+        const processingTime = performance.now() - startTime;
+        setStats(prev => {
+          const newFramesProcessed = prev.framesProcessed + 1;
+          const newAverageTime = (prev.averageProcessingTime * prev.framesProcessed + processingTime) / newFramesProcessed;
+          
+          return {
+            framesProcessed: newFramesProcessed,
+            codesDetected: frameCodes.length,
+            averageProcessingTime: newAverageTime,
+            fps: 1000 / (processingTime + 66), // 15 FPS target
+            lastUpdate: new Date()
+          };
+        });
+      }
 
-      onStatsUpdate(stats);
-
-    } catch {
-      console.log('No QR codes detected in this frame');
+    } catch (error) {
+      console.log('Frame processing error:', error);
     } finally {
       processingRef.current = false;
     }
-  }, [detectedCodes, onResults, onSingleResult, onStatsUpdate, stats]);
+  }, [detectQRCodes, onResults, onSingleResult, stopCamera, cameraState.isActive]);
 
-  // Start processing loop
+  // Start processing loop - ONLY when camera is active
   const startProcessing = useCallback(() => {
-    if (!cameraState.isActive) return;
+    if (!cameraState.isActive) {
+      console.log('CAMERA NOT ACTIVE - NOT STARTING PROCESSING');
+      return;
+    }
 
-    console.log('Starting processing loop');
+    console.log('Starting QR processing loop');
+    shouldStopRef.current = false; // Reset stop flag
     
     const processLoop = () => {
-      if (cameraState.isActive && !processingRef.current) {
+      // CRITICAL: Check global stop flag first
+      if (shouldStopRef.current) {
+        console.log('GLOBAL STOP FLAG - STOPPING PROCESSING LOOP');
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = 0;
+        }
+        processingRef.current = false;
+        return;
+      }
+
+      // CRITICAL: Check camera state before processing
+      if (!cameraState.isActive) {
+        console.log('CAMERA BECAME INACTIVE - STOPPING PROCESSING LOOP');
+        shouldStopRef.current = true;
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = 0;
+        }
+        processingRef.current = false;
+        return;
+      }
+
+      // Only process if camera is active and not already processing
+      if (cameraState.isActive && !processingRef.current && !shouldStopRef.current) {
         processFrame();
       }
       
-      animationFrameRef.current = requestAnimationFrame(() => {
-        setTimeout(processLoop, 300); // 3 FPS for better accuracy
-      });
+      // Only continue loop if camera is still active and not stopped
+      if (cameraState.isActive && !shouldStopRef.current) {
+        animationFrameRef.current = requestAnimationFrame(() => {
+          setTimeout(processLoop, 66); // 15 FPS
+        });
+      } else {
+        console.log('CAMERA INACTIVE OR STOPPED - STOPPING LOOP');
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = 0;
+        }
+      }
     };
 
     processLoop();
   }, [cameraState.isActive, processFrame]);
+
+  // IMMEDIATE cleanup when camera becomes inactive
+  useEffect(() => {
+    if (!cameraState.isActive) {
+      console.log('CAMERA INACTIVE - IMMEDIATE CLEANUP');
+      shouldStopRef.current = true; // Set global stop flag
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = 0;
+      }
+      processingRef.current = false;
+      setCurrentFrameCodes([]);
+      setStats({
+        framesProcessed: 0,
+        codesDetected: 0,
+        averageProcessingTime: 0,
+        fps: 0,
+        lastUpdate: new Date()
+      });
+    }
+  }, [cameraState.isActive]);
 
   // Toggle camera
   const toggleCamera = () => {
@@ -291,8 +560,8 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
   // Clear detected codes
   const clearResults = () => {
     setDetectedCodes([]);
-    lastDetectedCodesRef.current.clear();
-    lastDetectionTimeRef.current = 0;
+    setCurrentFrameCodes([]);
+    uniqueCodesSet.current.clear();
   };
 
   // Export results
@@ -319,15 +588,22 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
     console.log('getUserMedia support:', !!navigator.mediaDevices?.getUserMedia);
     console.log('HTTPS:', window.location.protocol === 'https:');
     
+    // Test jsQR library
+    try {
+      console.log('Testing jsQR library...');
+      const testImageData = new ImageData(100, 100);
+      const testResult = jsQR(testImageData.data, testImageData.width, testImageData.height);
+      console.log('jsQR library test result:', testResult ? 'Working' : 'No QR found (expected)');
+    } catch (error) {
+      console.error('jsQR library test failed:', error);
+    }
+    
     return () => {
       if (cameraState.stream) {
         cameraState.stream.getTracks().forEach(track => track.stop());
       }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (readerRef.current) {
-        readerRef.current.reset();
       }
     };
   }, []);
@@ -338,7 +614,7 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
     
     // Start processing when camera becomes active
     if (cameraState.isActive && cameraState.stream) {
-      console.log('Camera is active, starting processing...');
+      console.log('Camera is active, starting simple QR processing...');
       startProcessing();
     }
   }, [cameraState, startProcessing]);
@@ -380,7 +656,7 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
             <div className="text-center text-white">
               <div className="w-16 h-16 mx-auto mb-4 bg-gray-700 rounded-full flex items-center justify-center">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 002 2z" />
                 </svg>
               </div>
               <p className="text-lg font-medium">Camera Off</p>
@@ -388,6 +664,11 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
               <div className="mt-2 text-xs text-gray-500">
                 Debug: isActive={cameraState.isActive.toString()}, hasStream={!!cameraState.stream}
               </div>
+              {!cameraState.isActive && (
+                <div className="mt-2 text-xs text-yellow-400">
+                  Processing stopped - Camera inactive
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -408,22 +689,33 @@ const AdvancedMultiScanner: React.FC<AdvancedMultiScannerProps> = ({
             
             {/* Detected codes overlay */}
             <AnimatePresence>
-              {detectedCodes.map((code) => (
+              {currentFrameCodes.map((code, index) => (
                 <motion.div
-                  key={code.id}
+                  key={`${code.text}-${index}`}
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   className="absolute bg-green-500/80 text-white text-xs px-2 py-1 rounded"
                   style={{
-                    left: `${code.boundingBox?.x || 0}px`,
-                    top: `${code.boundingBox?.y || 0}px`
+                    left: `${code.boundingBox.x}px`,
+                    top: `${code.boundingBox.y}px`
                   }}
                 >
                   ✓ {code.text.substring(0, 20)}...
                 </motion.div>
               ))}
             </AnimatePresence>
+            
+            {/* Auto-stop indicator */}
+            {uniqueCodesSet.current.size >= 2 && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute top-4 left-4 bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"
+              >
+                ✓ CODES DETECTED - CAMERA STOPPED
+              </motion.div>
+            )}
           </div>
         )}
 
