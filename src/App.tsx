@@ -210,6 +210,7 @@ function App() {
               <TrueMultiCodeScanner
                 onResults={handleScanResults}
                 onSingleResult={handleSingleResult}
+                maxCodes={10}
               />
               
               {/* Demo Setup Component */}

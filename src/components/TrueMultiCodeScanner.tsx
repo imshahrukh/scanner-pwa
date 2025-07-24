@@ -1,30 +1,38 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import jsQR from 'jsqr';
 import type { ScanResult } from '../types';
-import { detectPlatform } from '../types';
 
 interface TrueMultiCodeScannerProps {
   onResults: (results: ScanResult[]) => void;
   onSingleResult?: (result: ScanResult) => void;
+  maxCodes?: number; // Default to 10
 }
 
 const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({ 
   onResults, 
-  onSingleResult 
+  onSingleResult,
+  maxCodes = 10
 }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [platformInfo] = useState(detectPlatform());
+  const [scannedCount, setScannedCount] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [lastScannedCode, setLastScannedCode] = useState<string>('');
   
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  
-  // Use refs for variables that need to persist across renders
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const isScanningRef = useRef(false);
+  const lastScanTimeRef = useRef(0);
   const animationFrameIdRef = useRef<number | null>(null);
-  const lastScanTimeRef = useRef<number>(0);
-  const scannedCodesSetRef = useRef<Set<string>>(new Set<string>());
-  const isScanningRef = useRef<boolean>(false); // Add ref to track scanning state
+  const scannedCodesSetRef = useRef<Set<string>>(new Set());
+  
+  // Platform detection
+  const platformInfo = {
+    isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+    isAndroid: /Android/.test(navigator.userAgent),
+    isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  };
 
   // iOS-friendly video constraints
   const getVideoConstraints = useCallback(() => {
@@ -45,7 +53,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
   }, [platformInfo.isIOS]);
 
-  // EXACT copy from test file - but using refs and useCallback
+  // ORIGINAL WORKING VERSION - EXACT copy from test file
   const detectMultipleCodes = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) {
       console.log('Video or canvas not ready');
@@ -59,14 +67,14 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       return;
     }
     
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       console.log('Canvas context not available');
       return;
     }
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
     
     ctx.drawImage(video, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -205,18 +213,40 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     if (results.length > 0) {
       console.log(`Detected ${results.length} QR code(s):`, results.map(r => r.text));
       
+      // Add to scanned codes to prevent duplicates
+      newCodes.forEach(code => scannedCodesSetRef.current.add(code));
+      
+      // Update count and show popup for each new code
+      results.forEach(result => {
+        setScannedCount(prev => {
+          const newCount = prev + 1;
+          if (newCount <= maxCodes) {
+            // Show popup for scanned code
+            setLastScannedCode(result.text);
+            setShowPopup(true);
+            
+            // Auto-hide popup after 2 seconds
+            setTimeout(() => setShowPopup(false), 2000);
+            
+            // Check if we've reached the limit
+            if (newCount === maxCodes) {
+              console.log(`Reached ${maxCodes} codes limit, stopping camera`);
+              setTimeout(() => stopCamera(), 1000); // Stop after 1 second
+            }
+          }
+          return newCount;
+        });
+      });
+      
       if (results.length === 1 && onSingleResult) {
         onSingleResult(results[0]);
       } else if (results.length > 1 && onResults) {
         onResults(results);
       }
-      
-      // Add to scanned codes to prevent duplicates
-      newCodes.forEach(code => scannedCodesSetRef.current.add(code));
     }
-  }, [onResults, onSingleResult]);
+  }, [onResults, onSingleResult, maxCodes]);
 
-  // EXACT copy from test file - but using refs and useCallback
+  // ORIGINAL WORKING VERSION - EXACT copy from test file
   const scanFrame = useCallback(() => {
     if (!isScanningRef.current) {
       console.log('Scanning stopped, exiting scanFrame');
@@ -238,6 +268,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     console.log('Starting camera...');
     setError(null);
     scannedCodesSetRef.current = new Set();
+    setScannedCount(0);
     
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -311,20 +342,22 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
           } else if (error.name === 'NotFoundError') {
             setError('No camera found on this device.');
           } else {
-            setError('Camera error on iOS. Please ensure you\'re using Safari and have camera permissions enabled.');
+            setError(`Camera error: ${error.message}`);
           }
+        } else {
+          setError('Unknown camera error occurred.');
         }
       } else {
-        setError(`Failed to access camera: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setError(`Camera error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
-  }, [platformInfo.isIOS, getVideoConstraints, scanFrame]);
+  }, [scanFrame, getVideoConstraints, platformInfo.isIOS]);
 
-  // Stop scanning - EXACT copy from test file - but using refs
-  const stopScanning = useCallback(() => {
+  // Stop scanning
+  const stopCamera = useCallback(() => {
     console.log('Stopping camera...');
     setIsScanning(false);
-    isScanningRef.current = false; // Set ref immediately
+    isScanningRef.current = false;
     
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
@@ -332,29 +365,118 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
     
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        console.log('Stopping track:', track.kind);
+        track.stop();
+      });
       streamRef.current = null;
     }
     
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    
+    console.log('Camera stopped');
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopScanning();
+      stopCamera();
     };
-  }, [stopScanning]);
+  }, [stopCamera]);
 
   return (
-    <div className="scanner-container">
-      <div className="p-4">
-        <h2 className="text-xl font-semibold text-center mb-4">
-          True Multi-Code Scanner
-        </h2>
-        
+    <div className="max-w-md mx-auto p-4">
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+          <h2 className="text-xl font-bold text-center">10 QR Code Scanner</h2>
+          <p className="text-center text-blue-100 text-sm mt-1">
+            Scan up to {maxCodes} QR codes simultaneously
+          </p>
+        </div>
+
+        {/* Camera container */}
+        <div className="relative bg-gray-900 aspect-video">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+          
+          {/* Overlay when camera is off */}
+          {!isScanning && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white">
+              <div className="text-center">
+                <div className="text-4xl mb-2">📷</div>
+                <p className="text-sm">Camera ready</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Overlay when scanning */}
+          {isScanning && (
+            <div className="absolute inset-0 bg-black bg-opacity-20">
+              <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                Scanning...
+              </div>
+              <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-3 py-1 rounded text-sm">
+                Multi-Code Mode: All visible QR codes will be detected simultaneously
+                {platformInfo.isIOS && (
+                  <span className="block text-xs">Tap screen if scanning freezes</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="p-4 space-y-3">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="flex space-x-2">
+            {!isScanning ? (
+              <button
+                onClick={startScanning}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition-colors"
+              >
+                Start Scanner
+              </button>
+            ) : (
+              <button
+                onClick={stopCamera}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors"
+              >
+                Stop Scanner
+              </button>
+            )}
+          </div>
+
+          {/* Progress indicator */}
+          {scannedCount > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+              <div className="flex justify-between text-sm font-medium text-blue-900">
+                <span>Scanned:</span>
+                <span>{scannedCount}/{maxCodes}</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(scannedCount / maxCodes) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
         <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
           <p className="text-sm">
             🚀 Advanced Multi-Code Detection: Detects ALL QR codes in the camera view simultaneously
@@ -363,111 +485,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
             Works with any arrangement: vertical, horizontal, grid, or scattered QR codes
           </p>
         </div>
-        
-        {/* iOS-specific warning for HTTPS */}
-        {platformInfo.isIOS && !window.location.protocol.includes('https') && (
-          <div className="mb-4 p-3 bg-orange-100 border border-orange-400 text-orange-700 rounded">
-            <p className="text-sm">
-              ⚠️ Camera requires HTTPS on iOS. Please use a secure connection for best results.
-            </p>
-          </div>
-        )}
-        
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            <p className="text-sm">{error}</p>
-            {platformInfo.isIOS && error.includes('permission') && (
-              <p className="text-xs mt-2">
-                iOS Tip: Go to Settings {'->'} Safari {'->'} Camera and ensure camera access is allowed.
-              </p>
-            )}
-          </div>
-        )}
 
-        <div className="relative mb-4">
-          <div className="relative">
-            {/* Always render video element, but hide when not scanning */}
-            <video
-              ref={videoRef}
-              className={`scanner-video ${isScanning ? 'block' : 'hidden'}`}
-              playsInline
-              muted
-              autoPlay
-              onClick={() => {
-                if (platformInfo.isIOS && videoRef.current) {
-                  videoRef.current.play().catch(console.error);
-                }
-              }}
-              style={{
-                objectFit: 'cover',
-                WebkitTransform: platformInfo.isIOS ? 'translateZ(0)' : 'none',
-                WebkitBackfaceVisibility: platformInfo.isIOS ? 'hidden' : 'visible',
-              }}
-            />
-            
-            {/* Overlay elements when scanning */}
-            {isScanning && (
-              <>
-                <div className="absolute inset-0 border-2 border-blue-500 rounded-lg pointer-events-none">
-                  <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-blue-500"></div>
-                  <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-blue-500"></div>
-                  <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-blue-500"></div>
-                  <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-blue-500"></div>
-                </div>
-                <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-3 py-1 rounded text-sm">
-                  Multi-Code Mode: All visible QR codes will be detected simultaneously
-                  {platformInfo.isIOS && (
-                    <span className="block text-xs">Tap screen if scanning freezes</span>
-                  )}
-                </div>
-              </>
-            )}
-            
-            {/* Placeholder when not scanning */}
-            {!isScanning && (
-              <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01M9 12h.01M9 15h.01M12 9h.01M12 12h.01M12 15h.01M15 9h.01M15 12h.01M15 15h.01" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-600 text-sm">Camera preview will appear here</p>
-                  {platformInfo.isIOS && (
-                    <p className="text-gray-500 text-xs mt-1">iOS requires camera permissions</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          {!isScanning ? (
-            <button
-              onClick={startScanning}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-              </svg>
-              {platformInfo.isIOS ? 'Start Camera' : 'Start Multi-Code Scanning'}
-            </button>
-          ) : (
-            <button
-              onClick={stopScanning}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-              </svg>
-              Stop Camera
-            </button>
-          )}
-        </div>
-        
         {/* Tips */}
         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
           <h4 className="text-sm font-medium text-green-900 mb-1">🎯 True Multi-Code Scanner Benefits:</h4>
@@ -480,22 +498,25 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
           </ul>
         </div>
         
-        {/* iOS-specific tips */}
-        {platformInfo.isIOS && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-            <h4 className="text-sm font-medium text-blue-900 mb-1">iOS Tips:</h4>
-            <ul className="text-xs text-blue-800 space-y-1">
-              <li>- Use Safari browser for best compatibility</li>
-              <li>- Ensure good lighting for scanning</li>
-              <li>- Hold device steady for better detection</li>
-              <li>- If camera freezes, tap the video area</li>
-            </ul>
+        {/* Hidden canvas for processing */}
+        <canvas ref={canvasRef} className="hidden" />
+        
+        {/* Popup for scanned codes */}
+        {showPopup && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg animate-pulse z-50">
+            <div className="text-center">
+              <div className="text-2xl mb-2">✅</div>
+              <div className="font-bold">QR Code Scanned!</div>
+              <div className="text-sm mt-1 opacity-90">
+                {lastScannedCode.length > 30 
+                  ? lastScannedCode.substring(0, 30) + '...' 
+                  : lastScannedCode
+                }
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Hidden canvas for processing */}
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 };
