@@ -480,6 +480,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
             </div>
           )}
 
+
           {/* Overlay when scanning */}
           {isScanning && (
             <div className="absolute inset-0 bg-black bg-opacity-20">
