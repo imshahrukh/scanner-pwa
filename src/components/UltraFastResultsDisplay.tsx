@@ -14,13 +14,10 @@ const UltraFastResultsDisplay: React.FC<UltraFastResultsDisplayProps> = ({
   const lastUpdateRef = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Optimized batch updates - only update every 100ms for smooth performance
+  // Immediate updates for mobile compatibility
   useEffect(() => {
-    const now = Date.now();
-    if (now - lastUpdateRef.current > 100) {
-      setDisplayResults(results.slice(0, maxDisplay));
-      lastUpdateRef.current = now;
-    }
+    setDisplayResults(results.slice(0, maxDisplay));
+    lastUpdateRef.current = Date.now();
   }, [results, maxDisplay]);
 
   // Auto-scroll to show new results

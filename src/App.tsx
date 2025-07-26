@@ -79,6 +79,7 @@ function App() {
   const handleScanResults = (results: ScanResult[]) => {
     console.log('Received results:', results.length, 'codes');
     
+    // Force immediate state update for mobile compatibility
     setScanResults(prev => {
       // Filter out duplicates within this session only
       const newUniqueResults = results.filter(result => {
@@ -96,7 +97,14 @@ function App() {
       if (newUniqueResults.length > 0) {
         const updatedResults = [...newUniqueResults, ...prev];
         // Keep only last 100 results
-        return updatedResults.slice(0, 100);
+        const finalResults = updatedResults.slice(0, 100);
+        
+        // Force localStorage update for mobile
+        setTimeout(() => {
+          localStorage.setItem('multiQRScanResults', JSON.stringify(finalResults));
+        }, 0);
+        
+        return finalResults;
       }
       
       return prev;
@@ -117,7 +125,14 @@ function App() {
     setScanResults(prev => {
       const newResults = [result, ...prev];
       // Keep only last 100 results
-      return newResults.slice(0, 100);
+      const finalResults = newResults.slice(0, 100);
+      
+      // Force localStorage update for mobile
+      setTimeout(() => {
+        localStorage.setItem('multiQRScanResults', JSON.stringify(finalResults));
+      }, 0);
+      
+      return finalResults;
     });
   };
 
