@@ -153,6 +153,12 @@ function App() {
     setShowInstallPrompt(false);
   };
 
+  const clearResults = () => {
+    setScanResults([]);
+    uniqueCodesSet.current.clear();
+    localStorage.removeItem('multiQRScanResults');
+  };
+
 
 
   return (
@@ -292,6 +298,7 @@ function App() {
               <UltraFastResultsDisplay 
                 results={scanResults}
                 maxDisplay={50}
+                onClear={clearResults}
               />
             </motion.div>
           </div>

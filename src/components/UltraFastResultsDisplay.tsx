@@ -4,11 +4,13 @@ import type { ScanResult } from '../types';
 interface UltraFastResultsDisplayProps {
   results: ScanResult[];
   maxDisplay?: number;
+  onClear?: () => void;
 }
 
 const UltraFastResultsDisplay: React.FC<UltraFastResultsDisplayProps> = ({ 
   results, 
-  maxDisplay = 50 
+  maxDisplay = 50,
+  onClear
 }) => {
   const [displayResults, setDisplayResults] = useState<ScanResult[]>([]);
   const lastUpdateRef = useRef<number>(0);
@@ -64,6 +66,13 @@ const UltraFastResultsDisplay: React.FC<UltraFastResultsDisplayProps> = ({
         </div>
         
         <div className="flex gap-2">
+          <button
+            onClick={onClear}
+            className="px-3 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors"
+            title="Clear all results"
+          >
+            🗑️ Clear
+          </button>
           <button
             onClick={copyAllToClipboard}
             className="px-3 py-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors"

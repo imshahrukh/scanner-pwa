@@ -575,15 +575,15 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         {/* Hidden canvas for processing */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* Popup for scanned codes */}
+        {/* Popup for scanned codes - Mobile Optimized */}
         {showPopup && (
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg animate-pulse z-50">
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl border-2 border-green-400 animate-pulse z-[9999] max-w-[90vw]">
             <div className="text-center">
-              <div className="text-2xl mb-2">✅</div>
-              <div className="font-bold">QR Code Scanned!</div>
-              <div className="text-sm mt-1 opacity-90">
-                {lastScannedCode.length > 30
-                  ? lastScannedCode.substring(0, 30) + "..."
+              <div className="text-3xl mb-2">✅</div>
+              <div className="font-bold text-lg">QR Code Scanned!</div>
+              <div className="text-sm mt-2 opacity-90 break-all">
+                {lastScannedCode.length > 50
+                  ? lastScannedCode.substring(0, 50) + "..."
                   : lastScannedCode}
               </div>
             </div>
