@@ -38,7 +38,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // OPTIMIZED video constraints for speed
+  // FAST video constraints
   const getVideoConstraints = useCallback(() => {
     if (platformInfo.isIOS) {
       return {
@@ -57,7 +57,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
   }, [platformInfo.isIOS]);
 
-  // ORIGINAL WORKING VERSION - EXACT copy from test file
+  // SIMPLE FAST VERSION - Back to basics
   const detectMultipleCodes = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) {
       console.log("Video or canvas not ready");
@@ -92,7 +92,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
 
     console.log("Scanning frame:", canvas.width, "x", canvas.height);
 
-    // Strategy 1: Scan the entire frame with optimized settings
+    // Strategy 1: Scan the entire frame
     try {
       const result = jsQR(imageData.data, imageData.width, imageData.height, {
         inversionAttempts: "attemptBoth"
@@ -149,7 +149,10 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
             const result = jsQR(
               regionImageData.data,
               regionImageData.width,
-              regionImageData.height
+              regionImageData.height,
+              {
+                inversionAttempts: "attemptBoth"
+              }
             );
 
             if (
@@ -215,7 +218,10 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
           const result = jsQR(
             quadrantImageData.data,
             quadrantImageData.width,
-            quadrantImageData.height
+            quadrantImageData.height,
+            {
+              inversionAttempts: "attemptBoth"
+            }
           );
 
           if (
@@ -291,7 +297,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
 
     const now = Date.now();
     if (now - lastScanTimeRef.current > 16) {
-      // Scan every 16ms (60 FPS) for ultra-fast detection
+      // Scan every 16ms (60 FPS) for fast detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;

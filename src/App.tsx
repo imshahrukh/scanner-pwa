@@ -159,9 +159,9 @@ function App() {
               </motion.div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Multi-QR Scanner
+                  ULTRA-FAST Multi-QR Scanner
                 </h1>
-                <p className="text-sm text-gray-600">Advanced real-time multi-code detection</p>
+                <p className="text-sm text-gray-600">120 FPS + Multi-Region + GPU Technology</p>
               </div>
             </div>
             
