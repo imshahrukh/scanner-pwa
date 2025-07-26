@@ -38,16 +38,27 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // PEAK MOBILE video constraints
+  // DEVICE-SPECIFIC video constraints
   const getVideoConstraints = useCallback(() => {
-    if (platformInfo.isIOS) {
-      return {
-        facingMode: "environment",
-        width: { ideal: 1920, max: 2560 },
-        height: { ideal: 1080, max: 1440 },
-        frameRate: { ideal: 60, max: 120 },
-      };
+    if (platformInfo.isMobile) {
+      // MOBILE OPTIMIZED - Lower resolution, lower FPS for stability
+      if (platformInfo.isIOS) {
+        return {
+          facingMode: "environment",
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+        };
+      } else {
+        return {
+          facingMode: "environment",
+          width: { ideal: 1920, max: 2560 },
+          height: { ideal: 1080, max: 1440 },
+          frameRate: { ideal: 30, max: 60 },
+        };
+      }
     } else {
+      // DESKTOP OPTIMIZED - High resolution, high FPS for maximum speed
       return {
         facingMode: "environment",
         width: { ideal: 2560, max: 3840 },
@@ -55,7 +66,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         frameRate: { ideal: 60, max: 120 },
       };
     }
-  }, [platformInfo.isIOS]);
+  }, [platformInfo.isMobile, platformInfo.isIOS]);
 
   // SIMPLE FAST VERSION - Back to basics
   const detectMultipleCodes = useCallback(() => {
@@ -79,7 +90,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d", { 
-      willReadFrequently: true
+      willReadFrequently: true,
+      ...(platformInfo.isMobile ? {} : { desynchronized: true, alpha: false })
     });
     if (!ctx) {
       console.log("Canvas context not available");
@@ -298,8 +310,9 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 4) {
-      // Scan every 4ms (250 FPS) for MAXIMUM MOBILE detection
+    const scanInterval = platformInfo.isMobile ? 16 : 4; // 60 FPS mobile, 250 FPS desktop
+    if (now - lastScanTimeRef.current > scanInterval) {
+      // Device-specific scanning intervals
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
