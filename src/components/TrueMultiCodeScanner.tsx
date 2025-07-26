@@ -38,21 +38,21 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // iOS-friendly video constraints
+  // OPTIMIZED video constraints for speed
   const getVideoConstraints = useCallback(() => {
     if (platformInfo.isIOS) {
       return {
         facingMode: "environment",
-        width: { ideal: 640, max: 1024 },
-        height: { ideal: 480, max: 768 },
-        frameRate: { ideal: 15, max: 30 },
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        frameRate: { ideal: 60, max: 120 },
       };
     } else {
       return {
         facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
+        width: { ideal: 1920, max: 2560 },
+        height: { ideal: 1080, max: 1440 },
+        frameRate: { ideal: 60, max: 120 },
       };
     }
   }, [platformInfo.isIOS]);
@@ -78,7 +78,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) {
       console.log("Canvas context not available");
       return;
@@ -92,9 +92,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
 
     console.log("Scanning frame:", canvas.width, "x", canvas.height);
 
-    // Strategy 1: Scan the entire frame
+    // Strategy 1: Scan the entire frame with optimized settings
     try {
-      const result = jsQR(imageData.data, imageData.width, imageData.height);
+      const result = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth"
+      });
       if (result && !scannedCodesSetRef.current.has(result.data)) {
         console.log("Found QR code in full frame:", result.data);
         results.push({
@@ -288,8 +290,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 50) {
-      // Scan every 200ms for faster detection
+    if (now - lastScanTimeRef.current > 16) {
+      // Scan every 16ms (60 FPS) for ultra-fast detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
