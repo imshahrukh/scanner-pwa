@@ -38,21 +38,21 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // LIGHTNING-FAST video constraints
+  // PEAK MOBILE video constraints
   const getVideoConstraints = useCallback(() => {
     if (platformInfo.isIOS) {
       return {
         facingMode: "environment",
-        width: { ideal: 2560, max: 3840 },
-        height: { ideal: 1440, max: 2160 },
-        frameRate: { ideal: 240, max: 480 },
+        width: { ideal: 1920, max: 2560 },
+        height: { ideal: 1080, max: 1440 },
+        frameRate: { ideal: 60, max: 120 },
       };
     } else {
       return {
         facingMode: "environment",
-        width: { ideal: 3840, max: 5120 },
-        height: { ideal: 2160, max: 2880 },
-        frameRate: { ideal: 240, max: 480 },
+        width: { ideal: 2560, max: 3840 },
+        height: { ideal: 1440, max: 2160 },
+        frameRate: { ideal: 60, max: 120 },
       };
     }
   }, [platformInfo.isIOS]);
@@ -79,9 +79,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d", { 
-      willReadFrequently: true,
-      desynchronized: true,
-      alpha: false 
+      willReadFrequently: true
     });
     if (!ctx) {
       console.log("Canvas context not available");
@@ -301,7 +299,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
 
     const now = Date.now();
     if (now - lastScanTimeRef.current > 4) {
-      // Scan every 2ms (500 FPS) for BLAZING-FAST detection
+      // Scan every 4ms (250 FPS) for MAXIMUM MOBILE detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
@@ -346,13 +344,17 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       }
 
       console.log("Getting camera stream...");
+      const constraints = getVideoConstraints();
+      console.log("Video constraints:", constraints);
+      
       // Get camera stream
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: getVideoConstraints(),
+        video: constraints,
       });
 
       console.log("Camera stream obtained:", stream);
+      console.log("Stream tracks:", stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -360,6 +362,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           console.log("Video metadata loaded, starting scan");
+          console.log("Video dimensions:", videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
           setIsScanning(true);
           isScanningRef.current = true; // Set ref immediately
           // Start scanning after a short delay to ensure video is ready
