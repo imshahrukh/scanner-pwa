@@ -38,21 +38,21 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // ULTRA-FAST video constraints
+  // LIGHTNING-FAST video constraints
   const getVideoConstraints = useCallback(() => {
     if (platformInfo.isIOS) {
       return {
         facingMode: "environment",
-        width: { ideal: 1920, max: 2560 },
-        height: { ideal: 1080, max: 1440 },
-        frameRate: { ideal: 120, max: 240 },
+        width: { ideal: 2560, max: 3840 },
+        height: { ideal: 1440, max: 2160 },
+        frameRate: { ideal: 240, max: 480 },
       };
     } else {
       return {
         facingMode: "environment",
-        width: { ideal: 2560, max: 3840 },
-        height: { ideal: 1440, max: 2160 },
-        frameRate: { ideal: 120, max: 240 },
+        width: { ideal: 3840, max: 5120 },
+        height: { ideal: 2160, max: 2880 },
+        frameRate: { ideal: 240, max: 480 },
       };
     }
   }, [platformInfo.isIOS]);
@@ -268,8 +268,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
             setLastScannedCode(result.text);
             setShowPopup(true);
 
-            // Auto-hide popup after 1 second (faster)
-            setTimeout(() => setShowPopup(false), 1000);
+            // Auto-hide popup after 500ms (lightning fast)
+            setTimeout(() => setShowPopup(false), 500);
 
             // Check if we've reached the limit - STOP IMMEDIATELY
             if (newCount === maxCodes) {
@@ -300,8 +300,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 8) {
-      // Scan every 8ms (120 FPS) for ULTRA-FAST detection
+    if (now - lastScanTimeRef.current > 4) {
+      // Scan every 2ms (500 FPS) for BLAZING-FAST detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
