@@ -38,21 +38,21 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
       ),
   };
 
-  // FAST video constraints
+  // ULTRA-FAST video constraints
   const getVideoConstraints = useCallback(() => {
     if (platformInfo.isIOS) {
       return {
         facingMode: "environment",
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        frameRate: { ideal: 60, max: 120 },
+        width: { ideal: 1920, max: 2560 },
+        height: { ideal: 1080, max: 1440 },
+        frameRate: { ideal: 120, max: 240 },
       };
     } else {
       return {
         facingMode: "environment",
-        width: { ideal: 1920, max: 2560 },
-        height: { ideal: 1080, max: 1440 },
-        frameRate: { ideal: 60, max: 120 },
+        width: { ideal: 2560, max: 3840 },
+        height: { ideal: 1440, max: 2160 },
+        frameRate: { ideal: 120, max: 240 },
       };
     }
   }, [platformInfo.isIOS]);
@@ -78,7 +78,11 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const ctx = canvas.getContext("2d", { 
+      willReadFrequently: true,
+      desynchronized: true,
+      alpha: false 
+    });
     if (!ctx) {
       console.log("Canvas context not available");
       return;
@@ -264,13 +268,13 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
             setLastScannedCode(result.text);
             setShowPopup(true);
 
-            // Auto-hide popup after 2 seconds
-            setTimeout(() => setShowPopup(false), 2000);
+            // Auto-hide popup after 1 second (faster)
+            setTimeout(() => setShowPopup(false), 1000);
 
-            // Check if we've reached the limit
+            // Check if we've reached the limit - STOP IMMEDIATELY
             if (newCount === maxCodes) {
-              console.log(`Reached ${maxCodes} codes limit, stopping camera`);
-              setTimeout(() => stopCamera(), 1000); // Stop after 1 second
+              console.log(`Reached ${maxCodes} codes limit, stopping camera IMMEDIATELY`);
+              stopCamera(); // Stop immediately, no delay
             }
           }
           return newCount;
@@ -296,8 +300,8 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    if (now - lastScanTimeRef.current > 16) {
-      // Scan every 16ms (60 FPS) for fast detection
+    if (now - lastScanTimeRef.current > 8) {
+      // Scan every 8ms (120 FPS) for ULTRA-FAST detection
       console.log("Running scan frame...");
       detectMultipleCodes();
       lastScanTimeRef.current = now;
