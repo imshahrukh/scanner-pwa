@@ -310,7 +310,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     }
 
     const now = Date.now();
-    const scanInterval = platformInfo.isMobile ? 16 : 4; // 60 FPS mobile, 250 FPS desktop
+    const scanInterval = platformInfo.isMobile ? 16 : 2; // 60 FPS mobile, 500 FPS desktop
     if (now - lastScanTimeRef.current > scanInterval) {
       // Device-specific scanning intervals
       console.log("Running scan frame...");
