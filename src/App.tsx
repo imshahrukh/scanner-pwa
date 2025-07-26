@@ -174,9 +174,9 @@ function App() {
               </motion.div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  ULTRA-FAST Multi-QR Scanner
+                  Multi-QR Scanner
                 </h1>
-                <p className="text-sm text-gray-600">120 FPS + Multi-Region + GPU Technology</p>
+                <p className="text-sm text-gray-600">Fast multi-code detection</p>
               </div>
             </div>
             
@@ -218,11 +218,10 @@ function App() {
               {/* Scanner Title */}
               <div className="text-center">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  ⚡ Ultra-Fast Optimized Multi-QR Scanner
+                  Multi-QR Scanner
                 </h2>
                 <p className="text-gray-600 max-w-2xl mx-auto">
-                  <strong>60 FPS + Multi-Region + GPU Technology:</strong> Ultra-fast processing with 6x parallel region scanning. 
-                  Detects ALL QR codes simultaneously at 60 FPS with GPU acceleration.
+                  Fast and reliable multi-code detection
                 </p>
               </div>
 
@@ -247,9 +246,9 @@ function App() {
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                     <Zap className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">⚡ WASM Processing</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">Fast Detection</h3>
                   <p className="text-sm text-gray-600">
-                    Near-native performance with WebAssembly. 10x faster than pure JavaScript QR detection.
+                    Quick and reliable QR code detection
                   </p>
                 </motion.div>
 
@@ -260,9 +259,9 @@ function App() {
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                     <Camera className="w-6 h-6 text-green-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">🎯 Multi-Worker Processing</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">Multi-Code Support</h3>
                   <p className="text-sm text-gray-600">
-                    Parallel processing with multiple Web Workers. Utilizes all CPU cores for maximum speed.
+                    Detect multiple QR codes simultaneously
                   </p>
                 </motion.div>
 
@@ -273,9 +272,9 @@ function App() {
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                     <Smartphone className="w-6 h-6 text-purple-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">🚀 20 FPS Processing</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">Mobile Optimized</h3>
                   <p className="text-sm text-gray-600">
-                    20 frames per second processing with intelligent deduplication and real-time results.
+                    Works great on mobile devices and PWA
                   </p>
                 </motion.div>
               </div>

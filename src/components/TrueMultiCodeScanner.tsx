@@ -18,7 +18,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
   const [scannedCount, setScannedCount] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string>("");
-  const [isFullScreen, setIsFullScreen] = useState(false);
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -321,16 +321,6 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     if (onResults) {
       onResults([]); // Send empty results to clear the display
     }
-    
-    // Go full-screen with the video element
-    if (videoRef.current) {
-      try {
-        await videoRef.current.requestFullscreen();
-        setIsFullScreen(true);
-      } catch {
-        console.log("Full-screen not supported, continuing with normal mode");
-      }
-    }
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -428,11 +418,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
     setIsScanning(false);
     isScanningRef.current = false;
     
-    // Exit full-screen if active
-    if (isFullScreen && document.fullscreenElement) {
-      document.exitFullscreen();
-      setIsFullScreen(false);
-    }
+
 
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
@@ -526,7 +512,7 @@ const TrueMultiCodeScanner: React.FC<TrueMultiCodeScannerProps> = ({
                 onClick={startScanning}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition-colors"
               >
-                Start Full-Screen Scanner
+                Start Scanner
               </button>
             ) : (
               <button
